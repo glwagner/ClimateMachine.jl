@@ -1,7 +1,7 @@
 #### Precipitation component in atmosphere model
 abstract type PrecipitationModel end
 
-export NoPrecipitation, Rain
+export PrecipitationModel, NoPrecipitation, Rain
 
 using ..Microphysics
 
