@@ -62,6 +62,7 @@ end
 
 function initialize!(
     linearoperator!,
+    factors,
     Q,
     Qrhs,
     solver::GeneralizedConjugateResidual,
@@ -95,6 +96,7 @@ end
 
 function doiteration!(
     linearoperator!,
+    factors,
     Q,
     Qrhs,
     solver::GeneralizedConjugateResidual{K},

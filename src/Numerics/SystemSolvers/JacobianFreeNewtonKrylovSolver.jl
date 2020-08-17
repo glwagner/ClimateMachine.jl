@@ -119,6 +119,7 @@ function donewtoniteration!(
     =#
     iters = linearsolve!(
         jvp!,
+        nothing,
         solver.linearsolver,
         ΔQ,
         -R,

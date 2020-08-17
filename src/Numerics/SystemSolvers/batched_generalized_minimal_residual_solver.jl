@@ -246,12 +246,14 @@ end
 
 function initialize!(
     linearoperator!,
+    factors,
     Q,
     Qrhs,
     solver::BatchedGeneralizedMinimalResidual,
     args...;
     restart = false,
 )
+@info "I am in initialize!"
     g0 = solver.g0
     krylov_basis = solver.krylov_basis
     rtol, atol = solver.rtol, solver.atol
@@ -275,7 +277,12 @@ function initialize!(
     # FIXME: Can we make linearoperator! batch-able?
     # store the initial (global) residual in krylov_basis = r0/|r0|
     # solve for w then apply
-    # PRECONDITIONER: Q ->  P^{-1}Q
+    
+    # Inplace PRECONDITIONER: Q ->  P^{-1}Q
+    preconditioner_solve!(factors, krylov_basis, Q)
+    Q .= krylov_basis
+
+
     linearoperator!(krylov_basis, Q, args...)
     krylov_basis .= Qrhs .- krylov_basis
 
@@ -332,11 +339,14 @@ end
 
 function doiteration!(
     linearoperator!,
+    factors,
     Q,
     Qrhs,
     solver::BatchedGeneralizedMinimalResidual,
     args...,
 )
+
+@info "I am in doiteration!"
     FT = eltype(Q)
     krylov_basis = solver.krylov_basis
     krylov_basis_prev = solver.krylov_basis_prev
@@ -372,7 +382,7 @@ function doiteration!(
         # to make operator application batch-able. That way, we don't have
         # to do this back-and-forth reshaping
 
-        # PRECONDITIONER: batched_krylov_basis[j] ->  P^{-1}batched_krylov_basis[j]
+        
         convert_structure!(
             krylov_basis_prev,
             view(batched_krylov_basis, j, :, :),
@@ -380,6 +390,9 @@ function doiteration!(
             backward_permute,
         )
 
+        # PRECONDITIONER: batched_krylov_basis[j] ->  P^{-1}batched_krylov_basis[j]
+        preconditioner_solve!(factors,krylov_basis, krylov_basis_prev)
+        krylov_basis_prev .= krylov_basis
         # Global operator application to get new Krylov basis vector
         linearoperator!(krylov_basis, krylov_basis_prev, args...)
 
@@ -435,13 +448,19 @@ function doiteration!(
     )
     wait(device, event)
 
-    # PRECONDITIONER: sols ->  P sols
+    
     # Unwind reshaping and return solution in standard format
     convert_structure!(Q, sols, backward_reshape, backward_permute)
+    # PRECONDITIONER: Q ->  P Q
+    dQ = similar(Q)
+    preconditioner_matprodb!(factors, dQ, Q)
+    Q .= dQ
 
+  
     # if not converged, then restart
     converged || initialize!(
         linearoperator!,
+        factors,
         Q,
         Qrhs,
         solver,

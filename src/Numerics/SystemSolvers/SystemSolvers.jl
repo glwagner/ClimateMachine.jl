@@ -26,7 +26,7 @@ LinearAlgebra.norm(A::AbstractVector, p::Real, weighted::Bool) = norm(A, p)
 LinearAlgebra.norm(A::AbstractVector, weighted::Bool) = norm(A, 2, weighted)
 LinearAlgebra.dot(A::AbstractVector, B::AbstractVector, weighted) = dot(A, B)
 
-export linearsolve!, settolerance!, prefactorize
+export linearsolve!, settolerance!, prefactorize, preconditioner, preconditioner_solve!, preconditioner_matprod!
 export AbstractSystemSolver, AbstractIterativeSystemSolver
 export nonlinearsolve!
 
@@ -46,6 +46,7 @@ end
 function donewtoniteration!(linearoperator!, Q, Qrhs, solver::LSOnly, tol, args...)
     linearsolve!(
         linearoperator!,
+        nothing,
         solver.linearsolver,
         Q,
         Qrhs,
@@ -182,6 +183,7 @@ settolerance!(
 
 doiteration!(
     linearoperator!,
+    factors,
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
@@ -189,16 +191,17 @@ doiteration!(
     args...,
 ) = throw(MethodError(
     doiteration!,
-    (linearoperator!, Q, Qrhs, solver, tolerance, args...),
+    (linearoperator!, factors, Q, Qrhs, solver, tolerance, args...),
 ))
 
 initialize!(
     linearoperator!,
+    factors, 
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
     args...,
-) = throw(MethodError(initialize!, (linearoperator!, Q, Qrhs, solver, args...)))
+) = throw(MethodError(initialize!, (linearoperator!, factors, Q, Qrhs, solver, args...)))
 
 """
     prefactorize(linop!, linearsolver, args...)
@@ -228,6 +231,7 @@ jvp! = (ΔQ) -> F(Q + ΔQ)
 
 function linearsolve!(
     linearoperator!,
+    factors,
     solver::AbstractIterativeSystemSolver,
     Q,
     Qrhs,
@@ -237,13 +241,13 @@ function linearsolve!(
 )
     converged = false
     iters = 0
-
-    converged, residual_norm0 = initialize!(linearoperator!, Q, Qrhs, solver, args...)
+    @info "I am in linearsolve!"
+    converged, residual_norm0 = initialize!(linearoperator!, factors, Q, Qrhs, solver, args...)
     converged && return iters
 
     while !converged && iters < max_iters
         converged, inner_iters, residual_norm =
-            doiteration!(linearoperator!, Q, Qrhs, solver, args...)
+            doiteration!(linearoperator!, factors, Q, Qrhs, solver, args...)
 
         iters += inner_iters
 

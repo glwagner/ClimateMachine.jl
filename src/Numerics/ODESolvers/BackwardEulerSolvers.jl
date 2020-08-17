@@ -91,8 +91,9 @@ time step size.
 struct LinearBackwardEulerSolver{LS}
     solver::LS
     isadjustable::Bool
-    LinearBackwardEulerSolver(solver; isadjustable = false) =
-        new{typeof(solver)}(solver, isadjustable)
+    preconditioner::Bool
+    LinearBackwardEulerSolver(solver; isadjustable = false, preconditioner = false) =
+        new{typeof(solver)}(solver, isadjustable, preconditioner)
 end
 
 """
@@ -102,11 +103,13 @@ Concrete implementation of an `AbstractBackwardEulerSolver` to use linear
 solvers of type `AbstractSystemSolver`. See helper type
 [`LinearBackwardEulerSolver`](@ref)
 """
-mutable struct LinBESolver{FT, FAC, LS, F} <: AbstractBackwardEulerSolver
+mutable struct LinBESolver{FT, LOP, FAC, LS, F} <: AbstractBackwardEulerSolver
     α::FT
+    linop::LOP
     factors::FAC
     solver::LS
     isadjustable::Bool
+    preconditioner::Bool
     rhs!::F
 end
 
@@ -114,21 +117,27 @@ end
 
 function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, rhs!)
     FT = eltype(α)
-    factors =
-        prefactorize(EulerOperator(rhs!, -α), lin.solver, Q, nothing, FT(NaN))
-    LinBESolver(α, factors, lin.solver, lin.isadjustable, rhs!)
+    linop = EulerOperator(rhs!, -α)
+
+
+    # hard code
+    # factors = prefactorize(linop, lin.solver, Q, nothing, FT(NaN))
+
+    if lin.preconditioner
+        # TODO what is the single_column
+        single_column = false
+        factors = preconditioner(linop, single_column, Q, nothing, FT(NaN), )
+    end
+
+
+    LinBESolver(α, linop, factors, lin.solver, lin.isadjustable, lin.preconditioner, rhs!)
 end
 
 function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
     lin.α = α
     FT = eltype(Q)
-    lin.factors = prefactorize(
-        EulerOperator(lin.rhs!, -α),
-        lin.solver,
-        Q,
-        nothing,
-        FT(NaN),
-    )
+    lin.linop = EulerOperator(rhs!, -α)
+    lin.factors = prefactorize(lin.linop, lin.solver, Q, nothing, FT(NaN),)
 end
 
 function (lin::LinBESolver)(Q, Qhat, α, p, t)
@@ -136,7 +145,15 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         @assert lin.isadjustable
         update_backward_Euler_solver!(lin, Q, α)
     end
-    linearsolve!(lin.factors, lin.solver, Q, Qhat, p, t)
+
+    if lin.preconditioner
+        # update the preconditioner, lin.factors
+        FT = eltype(α)
+        # TODO what is the single_column
+        single_column = false
+        lin.factors = preconditioner(lin.linop, single_column, Q, nothing, FT(NaN), )
+    end
+    linearsolve!(lin.linop, lin.factors, lin.solver, Q, Qhat, p, t)
 end
 
 struct NonLinearBackwardEulerSolver{NLS}

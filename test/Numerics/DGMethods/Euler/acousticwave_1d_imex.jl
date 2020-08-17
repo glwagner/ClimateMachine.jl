@@ -54,13 +54,13 @@ function main()
 
     mpicomm = MPI.COMM_WORLD
 
-    polynomialorder = 3
-    numelem_horz = 6
-    numelem_vert = 4
+    polynomialorder = 2
+    numelem_horz = 2
+    numelem_vert = 2
 
-    timeend = 60 * 60
+    timeend = 1 * 60
     # timeend = 33 * 60 * 60 # Full simulation
-    outputtime = 60 * 60
+    outputtime = 1 * 60
 
     expected_result = Dict()
     expected_result[Float32] = 9.5066030866432000e+13
@@ -163,10 +163,9 @@ function run(
     linearsolver = BatchedGeneralizedMinimalResidual(
         lineardg,
         Q;
-        atol = 1.0e-10, #sqrt(eps(FT)) * 0.01,
-        rtol = 1.0e-16, #sqrt(eps(FT)) * 0.01,
+        atol = 1.0e-8, #sqrt(eps(FT)) * 0.01,
+        rtol = 1.0e-8, #sqrt(eps(FT)) * 0.01,
         # Maximum number of Krylov iterations in a column
-        max_subspace_size = 200,
     )
     # linearsolver = GeneralizedMinimalResidual(Q; M = 80, rtol = 1e-5)
 
@@ -183,7 +182,7 @@ function run(
     odesolver = ARK2GiraldoKellyConstantinescu(
         split_explicit_implicit ? rem_dg : dg,
         lineardg,
-        LinearBackwardEulerSolver(linearsolver; isadjustable = true),
+        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = true),
         Q;
         dt = dt,
         t0 = 0,
