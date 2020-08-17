@@ -346,7 +346,7 @@ function doiteration!(
     args...,
 )
 
-@info "I am in doiteration!"
+
     FT = eltype(Q)
     krylov_basis = solver.krylov_basis
     krylov_basis_prev = solver.krylov_basis_prev
@@ -452,11 +452,11 @@ function doiteration!(
     # Unwind reshaping and return solution in standard format
     convert_structure!(Q, sols, backward_reshape, backward_permute)
     # PRECONDITIONER: Q ->  P Q
-    dQ = similar(Q)
-    preconditioner_matprodb!(factors, dQ, Q)
-    Q .= dQ
+    PQ = similar(Q)
+    preconditioner_matprodb!(factors, PQ, Q)
+    Q .= PQ
 
-  
+    @show converged, j, residual_norm
     # if not converged, then restart
     converged || initialize!(
         linearoperator!,
