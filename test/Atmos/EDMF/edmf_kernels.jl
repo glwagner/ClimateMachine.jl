@@ -941,20 +941,6 @@ function turbconv_boundary_state!(
         en.ρaθ_liq_cv = gm.ρ * en_area * θ_liq_cv
         en.ρaq_tot_cv = gm.ρ * en_area * q_tot_cv
         en.ρaθ_liq_q_tot_cv = gm.ρ * en_area * θ_liq_q_tot_cv
-
-    # elseif bctype == 2 # top
-    #     ρinv = 1 / gm.ρ
-
-    #     ntuple(N_up) do i
-    #         up[i].ρaw = FT(0)
-    #         up[i].ρa = FT(0)
-    #         up[i].ρaθ_liq = FT(0)
-    #         up[i].ρaq_tot = FT(0)
-    #     end
-    #     en.ρatke = FT(0)
-    #     en.ρaθ_liq_cv = FT(0)
-    #     en.ρaq_tot_cv = FT(0)
-    #     en.ρaθ_liq_q_tot_cv = FT(0)
     end
 end;
 
@@ -985,21 +971,7 @@ function turbconv_normal_boundary_flux_second_order!(
     en = state⁺.turbconv.environment
     up_d = diff⁺.turbconv.updraft
     en_d = diff⁺.turbconv.environment
-    # # Charlie is the use of state⁺ here consistent for gm.ρ, up[i].ρa ?
-    # if bctype == 1 # bottom
-    #     area_en  = 1 - sum([up[i].ρa for i in 1:N])/gm.ρ
-    #     # YAIR - I need to pass the SurfaceModel into BC and into env_surface_covariances
-    #     # tke, e_cv ,q_tot_cv ,e_q_tot_cv = env_surface_covariances(turbconv.surface, turbconv, m, gm)
-    #     tke = FT(0)
-    #     e_int_cv = FT(0)
-    #     q_tot_cv = FT(0)
-    #     e_int_q_tot_cv = FT(0)
-    #     en_d.∇tke = SVector(0,0,gm.ρ * area_en * tke)
-    #     en_d.∇e_int_cv = SVector(0,0,gm.ρ * area_en * e_cv)
-    #     en_d.∇q_tot_cv = SVector(0,0,gm.ρ * area_en * q_tot_cv)
-    #     en_d.∇e_int_q_tot_cv = SVector(0,0,gm.ρ * area_en * e_q_tot_cv)
     if bctype == 2 # top
-        # for now zero flux at the top
         ntuple(N_up) do i
             up_d[i].ρaw = FT(0)
             up_d[i].ρa = FT(0)
