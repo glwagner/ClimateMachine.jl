@@ -61,7 +61,12 @@ function entr_detr(
     ε_dyn = min(max(ε_dyn, FT(0)), FT(1))
     δ_dyn = min(max(δ_dyn, FT(0)), FT(1))
     ε_trb = min(max(ε_trb, FT(0)), FT(1))
-
+    # if z>FT(2500)
+    #     μ_ij = (entr.χ - up_area / (up_area + a_en)) * Δb / Δw
+    #     println("====================")
+    #     @show δ_dyn, λ, D_δ ,M_δ ,δ_lim
+    #     @show μ_ij
+    # end
     return ε_dyn, δ_dyn, ε_trb
 end;
 

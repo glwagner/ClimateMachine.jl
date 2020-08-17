@@ -1,16 +1,21 @@
-# # Eddy Diffusivity- Mass Flux test
+# # Eddy Diffusivity - Mass Flux module
 
-# To put this in the form of ClimateMachine's [`BalanceLaw`](@ref
-# ClimateMachine.DGMethods.BalanceLaw), we'll re-write the equation as:
-
-# "tendency"      = - div("second order flux" + "first order flux") + "non-conservative source"
-# \frac{∂ F}{∂ t} = - ∇ ⋅ ( F2 + F1 )                               + S
-
-# where F1 is the flux-component that has no gradient term
-# where F2 is the flux-component that has a  gradient term
+# This tutorial implements the Eddy-Diffusivity Mass-Flux (EDMF)
+# parameterization for sub grid scale (SGS) turbulance and convection.
+# the model equations and rational are based on:
+# Tan et al. (2018); Cohen et al. (2020); Lopez-Gomez et al. (2020)
+# and Jia et al. (2020).
+# The key predictents of the model are the SGS vertical fluxes of heat moisture
+# and momentum, and the cloud fraction in the host model grid.
+# The EDMF parameterization divides the host model's grid into $N \ge 2$ subdomain
+# that represents a isotropic turbulent enviroment and coherent updraft(s)
+# and or downdafts. The parameterization solves prognostic euqations
+# for first and second moments in the subdomains and provides both the
+# SGS vertical flux and cloud fraction in the host model grid.
 
 # -------------- Subdomains:
-# The model has a grid mean (the dycore stats vector),i=1:N updrafts and a single environment subdomain (subscript "0")
+# The model has a grid mean (the dycore stats vector),i=1:N updrafts and 
+# a single environment subdomain (subscript "0")
 # The grid mean is prognostic in first moment and diagnostic in second moment.
 # The updrafts are prognostic in first moment and set to zero in second moment.
 # The environment is diagnostic in first moment and prognostic in second moment.
@@ -18,24 +23,33 @@
 # ## Equations solved:
 # -------------- First Moment Equations:
 #                grid mean
-# ``
-#     "tendency"           "second order flux"                    "first order flux"                 "non-conservative source"
-# \frac{∂ ρ}{∂ t}         =                                        - ∇ ⋅ (ρu)
-# \frac{∂ ρ u}{∂ t}       = - ∇ ⋅ (-ρaK ∇u0 - ρ*MF_{u} )           - ∇ ⋅ (ρu u' )         + S_{surface Friction}
-# \frac{∂ ρ e_{int}}{∂ t} = - ∇ ⋅ (-ρaK ∇e_{int,0} - ρ*MF_{e_int}) - ∇ ⋅ (u ρ_{int} ) + S_{microphysics}
-# \frac{∂ ρ q_{tot}}{∂ t} = - ∇ ⋅ (-ρaK ∇E_{tot,0} - ρ*MF_{q_tot}) - ∇ ⋅ (u ρ_{tot} ) + S_{microphysics}
+# ```math
+# \begin{align}
+# \frac{∂ ρ}{∂ t} = - ∇ ⋅ (ρu)
+# \frac{∂ ρ u}{∂ t} = - ∇ ⋅ (-ρaK ∇u0 - ρ*MF_{u}) - ∇ ⋅ (ρu u' ) + S_{surface Friction}
+# \frac{∂ ρ e_{int}}{∂ t} = - ∇ ⋅ (-ρaK ∇e_{int,0} - ρ*MF_{e_int}) - ∇ ⋅ (u ρ e_{int} ) + S_{microphysics}
+# \frac{∂ ρ q_{tot}}{∂ t} = - ∇ ⋅ (-ρaK ∇E_{tot,0} - ρ*MF_{q_tot}) - ∇ ⋅ (u ρ q_{tot} ) + S_{microphysics}
+# \end{align}
+# ```
+# here the Mass-Flux term for a variable \phi is defined as:
+# ```math
+# \begin{align}
 # MF_ϕ = \sum{a_i * (w_i-w0)(ϕ_i-ϕ0)}_{i=1:N}
+# \end{align}
+# and
 # K is the Eddy_Diffusivity, given as a function of environmental variables
-# ``
-
+#
 #                i'th updraft equations (no second order flux)
 # ``
-#     "tendency"                 "first order flux"    "non-conservative sources"
+# ```math
+# \begin{align}
 # \frac{∂ ρa_i}{∂ t}           = - ∇ ⋅ (ρu_i)         + (E_{i0}           - Δ_{i0})
 # \frac{∂ ρa_i u_i}{∂ t}       = - ∇ ⋅ (ρu_i u_i')    + (E_{i0}*u_0       - Δ_{i0}*u_i)       + ↑*(ρa_i*b - a_i\frac{∂p^†}{∂z})
 # \frac{∂ ρa_i e_{int,i}}{∂ t} = - ∇ ⋅ (ρu*e_{int,i}) + (E_{i0}*e_{int,0} - Δ_{i0}*e_{int,i}) + ρS_{int,i} # change to theta
 # \frac{∂ ρa_i q_{tot,i}}{∂ t} = - ∇ ⋅ (ρu*q_{tot,i}) + (E_{i0}*q_{tot,0} - Δ_{i0}*q_{tot,i}) + ρS_{tot,i}
-# b = 0.01*(e_{int,i} - e_{int})/e_{int}
+# \end{align}
+# here the subdomain buoyancy is defined as:
+# b = (b_i -  )/e_{int}
 #
 #                environment equations first moment
 #
