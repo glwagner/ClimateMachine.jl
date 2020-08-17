@@ -909,7 +909,6 @@ function turbconv_boundary_state!(
     bctype,
     t,
     state_int::Vars,
-    diff_int::Vars,
     aux_int::Vars,
 ) where {FT}
 
@@ -921,52 +920,41 @@ function turbconv_boundary_state!(
     gm_a = aux⁺
     if bctype == 1 # bottom
         # YAIR - which 'state' should I use here , state⁺ or state⁻  for computation of surface processes
-        upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf = compute_updraft_surface_BC(
-            turbconv.surface,
-            turbconv,
-            m,
-            gm,
-            gm_a,
-            t,
-        )
+        zLL = altitude(m, aux_int) # or just zLL = FT(20)
+        upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf,
+        θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke =
+            subdomain_surface_values(turbconv.surface,
+                                     turbconv,
+                                     m,
+                                     gm,
+                                     gm_a,
+                                     zLL)
 
         ntuple(N_up) do i
-            # use these value to override surface value if bad values appear
-            # upd_θ_liq_surf[i] = FT(298.8)
-            # upd_q_tot_surf[i] = FT(0.01793)
-            # up[i].ρa = FT(0.01173)
-            # if 45.11614 < t < 55
-            #     @show t, i, upd_θ_liq_surf[i], up[i].ρa, upd_q_tot_surf[i]
-            # end
-
             up[i].ρaw = FT(0)
             up[i].ρa = upd_a_surf[i] * gm.ρ
             up[i].ρaθ_liq = up[i].ρa * upd_θ_liq_surf[i]
             up[i].ρaq_tot = up[i].ρa * upd_q_tot_surf[i]
         end
-        zLL = altitude(m, aux_int) # or just zLL = FT(20)
-        θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke =
-            env_surface_covariances(turbconv.surface, turbconv, m, gm, gm_a, zLL)
         en_area = environment_area(gm, gm_a, N_up)
-
         en.ρatke = gm.ρ * en_area * tke
         en.ρaθ_liq_cv = gm.ρ * en_area * θ_liq_cv
         en.ρaq_tot_cv = gm.ρ * en_area * q_tot_cv
         en.ρaθ_liq_q_tot_cv = gm.ρ * en_area * θ_liq_q_tot_cv
 
-    elseif bctype == 2 # top
-        ρinv = 1 / gm.ρ
+    # elseif bctype == 2 # top
+    #     ρinv = 1 / gm.ρ
 
-        ntuple(N_up) do i
-            up[i].ρaw = FT(0)
-            up[i].ρa = FT(0)
-            up[i].ρaθ_liq = FT(0)
-            up[i].ρaq_tot = FT(0)
-        end
-        en.ρatke = FT(0)
-        en.ρaθ_liq_cv = FT(0)
-        en.ρaq_tot_cv = FT(0)
-        en.ρaθ_liq_q_tot_cv = FT(0)
+    #     ntuple(N_up) do i
+    #         up[i].ρaw = FT(0)
+    #         up[i].ρa = FT(0)
+    #         up[i].ρaθ_liq = FT(0)
+    #         up[i].ρaq_tot = FT(0)
+    #     end
+    #     en.ρatke = FT(0)
+    #     en.ρaθ_liq_cv = FT(0)
+    #     en.ρaq_tot_cv = FT(0)
+    #     en.ρaθ_liq_q_tot_cv = FT(0)
     end
 end;
 
@@ -993,12 +981,10 @@ function turbconv_normal_boundary_flux_second_order!(
 
     turbconv = m.turbconv
     N = n_updrafts(turbconv)
-    # gm = state⁺
-    # up = state⁺.turbconv.updraft
-    # en = state⁺.turbconv.environment
-    # gm_d = diff⁺
-    # up_d = diff⁺.turbconv.updraft
-    # en_d = diff⁺.turbconv.environment
+    up = state⁺.turbconv.updraft
+    en = state⁺.turbconv.environment
+    up_d = diff⁺.turbconv.updraft
+    en_d = diff⁺.turbconv.environment
     # # Charlie is the use of state⁺ here consistent for gm.ρ, up[i].ρa ?
     # if bctype == 1 # bottom
     #     area_en  = 1 - sum([up[i].ρa for i in 1:N])/gm.ρ
@@ -1012,13 +998,19 @@ function turbconv_normal_boundary_flux_second_order!(
     #     en_d.∇e_int_cv = SVector(0,0,gm.ρ * area_en * e_cv)
     #     en_d.∇q_tot_cv = SVector(0,0,gm.ρ * area_en * q_tot_cv)
     #     en_d.∇e_int_q_tot_cv = SVector(0,0,gm.ρ * area_en * e_q_tot_cv)
-    # elseif bctype == 2 # top
-    #     # for now zero flux at the top
-    #     en_d.∇tke = -n⁻ * FT(0)
-    #     en_d.∇e_int_cv = -n⁻ * FT(0)
-    #     en_d.∇q_tot_cv = -n⁻ * FT(0)
-    #     en_d.∇e_int_q_tot_cv = -n⁻ * FT(0)
-    # end
+    if bctype == 2 # top
+        # for now zero flux at the top
+        ntuple(N_up) do i
+            up_d[i].ρaw = FT(0)
+            up_d[i].ρa = FT(0)
+            up_d[i].ρaθ_liq = FT(0)
+            up_d[i].ρaq_tot = FT(0)
+        end
+        en_d.∇tke = -n⁻ * FT(0)
+        en_d.∇e_int_cv = -n⁻ * FT(0)
+        en_d.∇q_tot_cv = -n⁻ * FT(0)
+        en_d.∇e_int_q_tot_cv = -n⁻ * FT(0)
+    end
 end;
 
 function integral_load_auxiliary_state!(

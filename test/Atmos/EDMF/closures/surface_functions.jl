@@ -1,32 +1,9 @@
 #### Surface model kernels
-
-## --- revert to use compute_buoyancy_flux in SurfaceFluxes.jl ---|
-
-# function compute_blux(
-#     ss::AtmosModel{FT, N},
-#     m::SurfaceModel,
-#     source::Vars,
-#     state::Vars,
-#     ) where {FT, N}
-
-#     ts = PhaseEquil(param_set ,state.e_int, state.ρ, state.q_tot)
-#     ϵ_v::FT       = 1 / molmass_ratio(param_set)
-#     _T0::FT       = T_0(param_set)
-#     _e_int_i0::FT = e_int_i0(param_set)
-#     _grav::FT     = grav(param_set)
-#     _cv_m::FT    = cv_m(ts)
-#   return  _grav*( (m.e_int_surface_flux, -m.q_tot_surface_flux*_e_int_i0 )/(_cv_m*_T0 + state.e_int - state.q_tot*_e_int_i0 )
-#                 + ( (ϵ_v-1)*m.q_tot_surface_flux)/(1+(ϵ_v-1)*state.q_tot)) # this equation should verified in the design docs
-# end;
-# function compute_MO_len(κ::FT, ustar::FT, bflux::FT) where {FT<:Real, PS}
-#   return abs(bflux) < FT(1e-10) ? FT(0) : -ustar * ustar * ustar / bflux / κ
-# end;
-
 ## --- revert to use compute_buoyancy_flux in SurfaceFluxes.jl ---|
 
 using Statistics
 
-function env_surface_covariances(
+function subdomain_surface_values(
     m::SurfaceModel,
     turbconv::EDMF{FT},
     atmos::AtmosModel{FT},
@@ -34,19 +11,12 @@ function env_surface_covariances(
     aux::Vars,
     zLL::FT,
 ) where {FT}
+
     turbconv = atmos.turbconv
-
-    # yair - I would like to call the surface functions from src/Atmos/Model/SurfaceFluxes.jl
-    # bflux = Nishizawa2018.compute_buoyancy_flux(ss.param_set, m.shf, m.lhf, T_b, q, α_0) # missing def of m.shf, m.lhf, T_b, q, α_0
-    # oblength = Nishizawa2018.monin_obukhov_len(ss.param_set, u, θ, bflux) # missing def of u, θ,
-    # ustar = Nishizawa2018.ustar(..)
-    # for now I am using fixed values
-    # override ------------------
-    # gm_p = air_pressure(thermo_state(atmos, state, aux))
-
-    # e_int = internal_energy(atmos, state, aux)
-    # ts = PhaseEquil(atmos.param_set, e_int, state.ρ, state.moisture.ρq_tot / state.ρ)
-
+    N_up = n_updrafts(turbconv)
+    gm = state
+    en = state.turbconv.environment
+    up = state.turbconv.updraft
     ts = thermo_state(atmos, state, aux)
     gm_p = air_pressure(ts)
     θ_liq = liquid_ice_pottemp(ts)
@@ -54,11 +24,15 @@ function env_surface_covariances(
     _cp_m = cp_m(atmos.param_set, q)
     lv = latent_heat_vapor(ts)
     Π = exner(ts)
+    ρinv = 1 / gm.ρ
+    surface_scalar_coeff = turbconv.surface.scalar_coeff
 
     θ_liq_surface_flux = m.surface_shf / Π / _cp_m
     q_tot_surface_flux = m.surface_lhf / lv
+    # these value should be given from the SurfaceFluxes.jl once it is merged
     oblength = -FT(100)
     ustar = FT(0.28)
+
     if oblength < 0
         θ_liq_cv =
             4 * (θ_liq_surface_flux * θ_liq_surface_flux) / (ustar * ustar) *
@@ -79,33 +53,11 @@ function env_surface_covariances(
             4 * (θ_liq_surface_flux * q_tot_surface_flux) / (ustar * ustar)
         tke = FT(3.75) * ustar * ustar
     end
-    return θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke
-end;
 
-function compute_updraft_surface_BC(
-    m::SurfaceModel,
-    turbconv::EDMF{FT},
-    atmos::AtmosModel{FT},
-    state::Vars,
-    aux::Vars,
-    t,
-) where {FT}
-    turbconv = atmos.turbconv
-    N_up = n_updrafts(turbconv)
-    gm = state
-    en = state.turbconv.environment
-    up = state.turbconv.updraft
-    ρinv = 1 / gm.ρ
-    surface_scalar_coeff = turbconv.surface.scalar_coeff
-
-    θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke =
-        env_surface_covariances(m, turbconv, atmos, state, aux)
     upd_a_surf = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
     upd_θ_liq_surf = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
     upd_q_tot_surf = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
     ntuple(N_up) do i
-        # surface_scalar_coeff = percentile_bounds_mean_norm(1 - m.a_surf + (i-1) * FT(m.a_surf/N_up),
-        #                                                    1 - m.a_surf + i     * FT(m.a_surf/N_up), 1000)
         upd_a_surf[i] = FT(m.a_surf / N_up)
         e_int = internal_energy(atmos, state, aux)
         ts = PhaseEquil(
@@ -122,7 +74,7 @@ function compute_updraft_surface_BC(
             surface_scalar_coeff[i] * sqrt(max(q_tot_cv, 0))
         )
     end
-    return upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf
+    return upd_a_surf, upd_θ_liq_surf, upd_q_tot_surf, θ_liq_cv, q_tot_cv, θ_liq_q_tot_cv, tke
 end;
 
 function percentile_bounds_mean_norm(
