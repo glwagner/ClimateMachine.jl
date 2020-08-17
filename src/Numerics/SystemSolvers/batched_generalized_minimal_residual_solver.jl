@@ -278,8 +278,8 @@ function initialize!(
     # store the initial (global) residual in krylov_basis = r0/|r0|
     # solve for w then apply
     
-    # Inplace PRECONDITIONER: Q ->  P^{-1}Q
-    preconditioner_solve!(factors, krylov_basis, Q)
+    # Inplace PRECONDITIONER: Q ->  PQ
+    preconditioner_matprod!(factors, krylov_basis, Q)
     Q .= krylov_basis
 
 
@@ -451,10 +451,10 @@ function doiteration!(
     
     # Unwind reshaping and return solution in standard format
     convert_structure!(Q, sols, backward_reshape, backward_permute)
-    # PRECONDITIONER: Q ->  P Q
-    PQ = similar(Q)
-    preconditioner_matprodb!(factors, PQ, Q)
-    Q .= PQ
+    # PRECONDITIONER: Q ->  P^-1 Q
+    PinvQ = similar(Q)
+    preconditioner_solve!(factors, PinvQ, Q)
+    Q .= PinvQ
 
     @show converged, j, residual_norm
     # if not converged, then restart
@@ -606,6 +606,8 @@ function check_convergence(resnorms, resnorms0, atol, rtol)
 
     # Current stopping criteria is based on the maximal column norm
     residual_norm = maximum(resnorms)
+
+    @show residual_norm
     residual_norm0 = maximum(resnorms0)
     threshold = residual_norm0 * rtol
     converged  = (residual_norm < threshold)

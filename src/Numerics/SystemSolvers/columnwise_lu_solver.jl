@@ -103,7 +103,7 @@ function preconditioner_solve!(
 end
 
 
-function preconditioner_matprodb!(clu::ColumnwiseLU, PQ, Q)
+function preconditioner_matprod!(clu::ColumnwiseLU, PQ, Q)
     A = clu.A
     banded_matrix_vector_product!(A, PQ, Q)
 end
