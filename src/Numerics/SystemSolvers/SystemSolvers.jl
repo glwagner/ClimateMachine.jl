@@ -281,5 +281,4 @@ include("generalized_conjugate_residual_solver.jl")
 include("conjugate_gradient_solver.jl")
 include("columnwise_lu_solver.jl")
 include("batched_generalized_minimal_residual_solver.jl")
-
 end

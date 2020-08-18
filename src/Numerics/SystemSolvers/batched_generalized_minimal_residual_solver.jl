@@ -232,10 +232,11 @@ function BatchedGeneralizedMinimalResidual(
     permute_size = length(reshaping_tup)
     permute_tuple_f = (dim + 2, dim, dim + 1, (1:(dim - 1))..., permute_size)
 
+
     return BatchedGeneralizedMinimalResidual(
         Q,
-        n,
-        m;
+        m,
+        n;
         M = max_iteration,
         atol = atol,
         rtol = rtol,
@@ -460,7 +461,6 @@ function doiteration!(
     preconditioner_solve!(factors, ΔQ; temp = krylov_basis)
     Q .+= ΔQ
 
-    @show converged, j, residual_norm
     # if not converged, then restart
     converged || initialize!(
         linearoperator!,
@@ -614,8 +614,6 @@ function batched_check_convergence(resnorms, resnorms0, atol, rtol)
     residual_norm0 = maximum(resnorms0)
     threshold = residual_norm0 * rtol
     converged  = (residual_norm < threshold)
-
-    # @info "check ", converged, residual_norm, residual_norm0
 
     return converged, residual_norm
 end

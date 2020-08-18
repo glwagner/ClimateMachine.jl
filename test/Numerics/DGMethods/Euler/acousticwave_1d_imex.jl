@@ -58,9 +58,9 @@ function main()
     numelem_horz = 2
     numelem_vert = 2
 
-    timeend = 1 * 60
+    timeend = 60 * 60
     # timeend = 33 * 60 * 60 # Full simulation
-    outputtime = 1 * 60
+    outputtime = 60 * 60
 
     expected_result = Dict()
     expected_result[Float32] = 9.5066030866432000e+13

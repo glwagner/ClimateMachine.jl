@@ -165,6 +165,7 @@ function run(
         atol = 1e-5,
         rtol = 1e-5,
     )
+
     @info "Before creating BatchedJacobianFreeNewtonKrylovSolver"
     nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
         Q,

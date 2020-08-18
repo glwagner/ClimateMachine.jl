@@ -125,8 +125,6 @@ function donewtoniteration!(
         -R,
         args...,
     )
-    # @show norm(Q, weighted_norm), norm(ΔQ, weighted_norm)
-    # error("stop")
 
     # Newton correction
     Q .+= ΔQ
