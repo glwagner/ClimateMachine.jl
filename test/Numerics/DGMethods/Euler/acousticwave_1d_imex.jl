@@ -58,9 +58,9 @@ function main()
     numelem_horz = 2
     numelem_vert = 2
 
-    timeend = 60 * 60
+    timeend = 1 * 60
     # timeend = 33 * 60 * 60 # Full simulation
-    outputtime = 60 * 60
+    outputtime = 1 * 60
 
     expected_result = Dict()
     expected_result[Float32] = 9.5066030866432000e+13
@@ -159,14 +159,14 @@ function run(
 
     Q = init_ode_state(dg, FT(0))
 
-    #linearsolver = ManyColumnLU()
-    linearsolver = BatchedGeneralizedMinimalResidual(
-        lineardg,
-        Q;
-        atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
-        rtol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
-        # Maximum number of Krylov iterations in a column
-    )
+    linearsolver = ManyColumnLU()
+    # linearsolver = BatchedGeneralizedMinimalResidual(
+    #     lineardg,
+    #     Q;
+    #     atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+    #     rtol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+    #     # Maximum number of Krylov iterations in a column
+    # )
     # linearsolver = GeneralizedMinimalResidual(Q; M = 80, rtol = 1e-5)
 
     if split_explicit_implicit
