@@ -606,7 +606,7 @@ end
 
 
 
-function batched_batched_check_convergence(resnorms, resnorms0, atol, rtol)
+function batched_check_convergence(resnorms, resnorms0, atol, rtol)
 
     # Current stopping criteria is based on the maximal column norm
     residual_norm = maximum(resnorms)
@@ -614,6 +614,8 @@ function batched_batched_check_convergence(resnorms, resnorms0, atol, rtol)
     residual_norm0 = maximum(resnorms0)
     threshold = residual_norm0 * rtol
     converged  = (residual_norm < threshold)
+
+    # @info "check ", converged, residual_norm, residual_norm0
 
     return converged, residual_norm
 end

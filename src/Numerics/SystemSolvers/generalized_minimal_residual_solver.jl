@@ -42,7 +42,7 @@ mutable struct GeneralizedMinimalResidual{M, MP1, MMP1, T, AT} <:
 
     function GeneralizedMinimalResidual(
         Q::AT;
-        M = min(20, eltype(Q)),
+        M = min(20, length(Q)),
         rtol = √eps(eltype(AT)),
         atol = eps(eltype(AT)),
     ) where {AT}
