@@ -182,7 +182,7 @@ function run(
     odesolver = ARK2GiraldoKellyConstantinescu(
         split_explicit_implicit ? rem_dg : dg,
         lineardg,
-        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = false),
+        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = true),
         Q;
         dt = dt,
         t0 = 0,
