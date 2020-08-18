@@ -26,7 +26,7 @@ LinearAlgebra.norm(A::AbstractVector, p::Real, weighted::Bool) = norm(A, p)
 LinearAlgebra.norm(A::AbstractVector, weighted::Bool) = norm(A, 2, weighted)
 LinearAlgebra.dot(A::AbstractVector, B::AbstractVector, weighted) = dot(A, B)
 
-export linearsolve!, settolerance!, prefactorize, preconditioner, preconditioner_solve!, preconditioner_matprod!
+export linearsolve!, settolerance!, prefactorize, preconditioner, preconditioner_solve!
 export AbstractSystemSolver, AbstractIterativeSystemSolver
 export nonlinearsolve!
 
@@ -241,7 +241,6 @@ function linearsolve!(
 )
     converged = false
     iters = 0
-    @info "I am in linearsolve!"
     converged, residual_norm0 = initialize!(linearoperator!, factors, Q, Qrhs, solver, args...)
     converged && return iters
 

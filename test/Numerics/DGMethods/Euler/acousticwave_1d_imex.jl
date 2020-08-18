@@ -159,7 +159,7 @@ function run(
 
     Q = init_ode_state(dg, FT(0))
 
-    # linearsolver = ManyColumnLU()
+    #linearsolver = ManyColumnLU()
     linearsolver = BatchedGeneralizedMinimalResidual(
         lineardg,
         Q;

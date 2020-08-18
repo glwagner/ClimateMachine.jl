@@ -253,7 +253,7 @@ function initialize!(
     args...;
     restart = false,
 )
-@info "I am in initialize!"
+
     g0 = solver.g0
     krylov_basis = solver.krylov_basis
     rtol, atol = solver.rtol, solver.atol
@@ -278,17 +278,16 @@ function initialize!(
     # store the initial (global) residual in krylov_basis = r0/|r0|
     # solve for w then apply
     
-    # PRECONDITIONER: Q0 ->  PQ0, 
-    # the first basis is (J Pinv)Q0 = b, kry1 = b - JQ0
+    # PRECONDITIONER:  PQ0 ->  P*Q0, 
+    # the first basis is (J Pinv)PQ0 = b, kry1 = b - J Q0
     
-
+  
     linearoperator!(krylov_basis, Q, args...)
-
-    #todo PRECODITIONER converge
-    Q .= krylov_basis
-
-
     krylov_basis .= Qrhs .- krylov_basis
+
+
+    #PRECODITIONER update Q to 
+    # Q .= krylov_basis
 
     
 
@@ -397,7 +396,6 @@ function doiteration!(
         )
 
         # PRECONDITIONER: batched_krylov_basis[j] ->  P^{-1}batched_krylov_basis[j]
-        debug = copy(krylov_basis_prev)
         preconditioner_solve!(factors,krylov_basis, krylov_basis_prev)
         krylov_basis_prev .= krylov_basis
 
@@ -405,10 +403,6 @@ function doiteration!(
         # Global operator application to get new Krylov basis vector
         linearoperator!(krylov_basis, krylov_basis_prev, args...)
 
-        @show size(batched_krylov_basis[j, :, :]), norm(krylov_basis,false), norm(debug,false), maximum(debug - krylov_basis)
-
-        #@info debug - krylov_basis
-        
         # Now that we have a global Krylov vector, we reshape and batch
         # the Arnoldi iterations across all columns
         convert_structure!(
@@ -444,8 +438,10 @@ function doiteration!(
     end
 
     # Reshape the solution vector to construct the new GMRES iterate
+    # Q = Q0 + Pinv (Kry * y)
     # PRECONDITIONER Q should already be PQ0
-    convert_structure!(sols, Q, forward_reshape, forward_permute)
+    sols .= 0
+    # convert_structure!(sols, Q, forward_reshape, forward_permute)
 
     # Solve the triangular system (minimization problem for optimal linear coefficients
     # in the GMRES iterate) and construct the current iterate in each column
@@ -464,11 +460,11 @@ function doiteration!(
 
     
     # Unwind reshaping and return solution in standard format
-    convert_structure!(Q, sols, backward_reshape, backward_permute)
+    PΔQ, ΔQ = krylov_basis_prev, krylov_basis
+    convert_structure!(PΔQ, sols, backward_reshape, backward_permute)
     # PRECONDITIONER: Q ->  Pinv Q
-    PinvQ = similar(Q)
-    preconditioner_solve!(factors, PinvQ, Q)
-    Q .= PinvQ
+    preconditioner_solve!(factors, ΔQ, PΔQ)
+    Q .+= ΔQ
 
     @show converged, j, residual_norm
     # if not converged, then restart
