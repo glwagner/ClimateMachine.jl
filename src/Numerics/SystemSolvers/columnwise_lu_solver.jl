@@ -103,9 +103,10 @@ function preconditioner_solve!(
 end
 
 
-function preconditioner_matprodb!(clu::ColumnwiseLU, PQ, Q)
-    A = clu.A
-    banded_matrix_vector_product!(A, PQ, Q)
+function preconditioner_matprod!(clu::ColumnwiseLU, PQ, Q)
+    error("matprod has not implemented yet")
+    # A = clu.A
+    # banded_matrix_vector_product!(A, PQ, Q)
 end
 
 function prefactorize(op, solver::AbstractColumnLUSolver, Q, args...)

@@ -278,13 +278,19 @@ function initialize!(
     # store the initial (global) residual in krylov_basis = r0/|r0|
     # solve for w then apply
     
-    # Inplace PRECONDITIONER: Q ->  P^{-1}Q
-    preconditioner_solve!(factors, krylov_basis, Q)
+    # PRECONDITIONER: Q0 ->  PQ0, 
+    # the first basis is (J Pinv)Q0 = b, kry1 = b - JQ0
+    
+
+    linearoperator!(krylov_basis, Q, args...)
+
+    #todo PRECODITIONER converge
     Q .= krylov_basis
 
 
-    linearoperator!(krylov_basis, Q, args...)
     krylov_basis .= Qrhs .- krylov_basis
+
+    
 
     # Convert into a batched Krylov basis vector
     tmp_array = similar(batched_krylov_basis[1, :, :])
@@ -391,11 +397,18 @@ function doiteration!(
         )
 
         # PRECONDITIONER: batched_krylov_basis[j] ->  P^{-1}batched_krylov_basis[j]
+        debug = copy(krylov_basis_prev)
         preconditioner_solve!(factors,krylov_basis, krylov_basis_prev)
         krylov_basis_prev .= krylov_basis
+
+        
         # Global operator application to get new Krylov basis vector
         linearoperator!(krylov_basis, krylov_basis_prev, args...)
 
+        @show size(batched_krylov_basis[j, :, :]), norm(krylov_basis,false), norm(debug,false), maximum(debug - krylov_basis)
+
+        #@info debug - krylov_basis
+        
         # Now that we have a global Krylov vector, we reshape and batch
         # the Arnoldi iterations across all columns
         convert_structure!(
@@ -431,6 +444,7 @@ function doiteration!(
     end
 
     # Reshape the solution vector to construct the new GMRES iterate
+    # PRECONDITIONER Q should already be PQ0
     convert_structure!(sols, Q, forward_reshape, forward_permute)
 
     # Solve the triangular system (minimization problem for optimal linear coefficients
@@ -451,10 +465,10 @@ function doiteration!(
     
     # Unwind reshaping and return solution in standard format
     convert_structure!(Q, sols, backward_reshape, backward_permute)
-    # PRECONDITIONER: Q ->  P Q
-    PQ = similar(Q)
-    preconditioner_matprodb!(factors, PQ, Q)
-    Q .= PQ
+    # PRECONDITIONER: Q ->  Pinv Q
+    PinvQ = similar(Q)
+    preconditioner_solve!(factors, PinvQ, Q)
+    Q .= PinvQ
 
     @show converged, j, residual_norm
     # if not converged, then restart
@@ -606,8 +620,10 @@ function check_convergence(resnorms, resnorms0, atol, rtol)
 
     # Current stopping criteria is based on the maximal column norm
     residual_norm = maximum(resnorms)
+    
     residual_norm0 = maximum(resnorms0)
     threshold = residual_norm0 * rtol
     converged  = (residual_norm < threshold)
+    @show residual_norm, residual_norm0, rtol
     return converged, residual_norm
 end
