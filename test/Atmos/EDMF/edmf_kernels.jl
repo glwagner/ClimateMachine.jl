@@ -317,12 +317,15 @@ function init_aux_turbconv!(
     en_a = aux.turbconv.environment
     up_a = aux.turbconv.updraft
 
-    en_a.cld_frac = eps(FT)
-    en_a.buoyancy = eps(FT)
+    en_a.cld_frac = FT(0)
+    en_a.buoyancy = FT(0)
 
     ntuple(N_up) do i
-        up_a[i].buoyancy = eps(FT)
+        up_a[i].buoyancy    = FT(0)
         up_a[i].updraft_top = FT(500)
+        up_a[i].θ_liq       = FT(0)
+        up_a[i].q_tot       = FT(0)
+        up_a[i].w           = FT(0)
     end
 end;
 
