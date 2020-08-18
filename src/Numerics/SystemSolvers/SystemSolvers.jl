@@ -208,9 +208,9 @@ initialize!(
 
 Prefactorize the in-place linear operator `linop!` for use with `linearsolver`.
 """
-prefactorize(linop!, linearsolver::AbstractIterativeSystemSolver, args...) =
-    linop!
-
+function prefactorize(linop!, linearsolver::AbstractIterativeSystemSolver, args...)
+    return nothing
+end
 """
     linearsolve!(linearoperator!, solver::AbstractIterativeSystemSolver, Q, Qrhs, args...)
 

@@ -89,25 +89,24 @@ function preconditioner(op, single_column, Q, args...)
     ColumnwiseLU(A)
 end
 
-
+# Inplace preconditioner solved 
+# Q = Pinv * Q
+# temp is just a temporary  variable
 function preconditioner_solve!(
-    clu::ColumnwiseLU,
-    PinvQ,
-    Q,
+    clu::Union{ColumnwiseLU, Nothing},
+    Q;
+    temp,
 )
+    if isnothing(clu); return; end
     A = clu.A
-    PinvQ .= Q
+    temp .= Q
 
-    band_forward!(PinvQ, A)
-    band_back!(PinvQ, A)
+    band_forward!(temp, A)
+    band_back!(temp, A)
+
+    Q .= temp
 end
 
-
-function preconditioner_matprod!(clu::ColumnwiseLU, PQ, Q)
-    error("matprod has not implemented yet")
-    # A = clu.A
-    # banded_matrix_vector_product!(A, PQ, Q)
-end
 
 function prefactorize(op, solver::AbstractColumnLUSolver, Q, args...)
     dg = op.f!

@@ -281,15 +281,8 @@ function initialize!(
     # PRECONDITIONER:  PQ0 ->  P*Q0, 
     # the first basis is (J Pinv)PQ0 = b, kry1 = b - J Q0
     
-  
     linearoperator!(krylov_basis, Q, args...)
     krylov_basis .= Qrhs .- krylov_basis
-
-
-    #PRECODITIONER update Q to 
-    # Q .= krylov_basis
-
-    
 
     # Convert into a batched Krylov basis vector
     tmp_array = similar(batched_krylov_basis[1, :, :])
@@ -395,11 +388,12 @@ function doiteration!(
             backward_permute,
         )
 
-        # PRECONDITIONER: batched_krylov_basis[j] ->  P^{-1}batched_krylov_basis[j]
-        preconditioner_solve!(factors,krylov_basis, krylov_basis_prev)
-        krylov_basis_prev .= krylov_basis
+        # PRECONDITIONER: batched_krylov_basis[j+1] =  J P^{-1}batched_krylov_basis[j]
+        # set krylov_basis_prev = P^{-1}batched_krylov_basis[j]
+   
+        preconditioner_solve!(factors,  krylov_basis_prev; temp = krylov_basis)
 
-        
+
         # Global operator application to get new Krylov basis vector
         linearoperator!(krylov_basis, krylov_basis_prev, args...)
 
@@ -438,11 +432,9 @@ function doiteration!(
     end
 
     # Reshape the solution vector to construct the new GMRES iterate
-    # Q = Q0 + Pinv (Kry * y)
-    # PRECONDITIONER Q should already be PQ0
+    # PRECONDITIONER Q =  Q0 + Pinv PΔQ = Q0 + Pinv (Kry * y) 
+    # sol = PΔQ = Kry * y
     sols .= 0
-    # convert_structure!(sols, Q, forward_reshape, forward_permute)
-
     # Solve the triangular system (minimization problem for optimal linear coefficients
     # in the GMRES iterate) and construct the current iterate in each column
     event = Event(device)
@@ -459,11 +451,13 @@ function doiteration!(
     wait(device, event)
 
     
+    
+    # Use krylov_basis_prev as container for ΔQ
+    ΔQ = krylov_basis_prev
     # Unwind reshaping and return solution in standard format
-    PΔQ, ΔQ = krylov_basis_prev, krylov_basis
-    convert_structure!(PΔQ, sols, backward_reshape, backward_permute)
+    convert_structure!(ΔQ, sols, backward_reshape, backward_permute)
     # PRECONDITIONER: Q ->  Pinv Q
-    preconditioner_solve!(factors, ΔQ, PΔQ)
+    preconditioner_solve!(factors, ΔQ; temp = krylov_basis)
     Q .+= ΔQ
 
     @show converged, j, residual_norm
@@ -620,6 +614,6 @@ function check_convergence(resnorms, resnorms0, atol, rtol)
     residual_norm0 = maximum(resnorms0)
     threshold = residual_norm0 * rtol
     converged  = (residual_norm < threshold)
-    @show residual_norm, residual_norm0, rtol
+
     return converged, residual_norm
 end

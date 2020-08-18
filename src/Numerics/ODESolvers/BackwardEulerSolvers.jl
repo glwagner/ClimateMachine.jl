@@ -103,10 +103,10 @@ Concrete implementation of an `AbstractBackwardEulerSolver` to use linear
 solvers of type `AbstractSystemSolver`. See helper type
 [`LinearBackwardEulerSolver`](@ref)
 """
-mutable struct LinBESolver{FT, LOP, FAC, LS, F} <: AbstractBackwardEulerSolver
+mutable struct LinBESolver{FT, LOP, LS, F} <: AbstractBackwardEulerSolver
     α::FT
     linop::LOP
-    factors::FAC
+    factors
     solver::LS
     isadjustable::Bool
     preconditioner::Bool
@@ -119,16 +119,7 @@ function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, rhs!
     FT = eltype(α)
     linop = EulerOperator(rhs!, -α)
 
-
-    # hard code
-    # factors = prefactorize(linop, lin.solver, Q, nothing, FT(NaN))
-
-    if lin.preconditioner
-        # TODO what is the single_column
-        single_column = false
-        factors = preconditioner(linop, single_column, Q, nothing, FT(NaN), )
-    end
-
+    factors = prefactorize(linop, lin.solver, Q, nothing, FT(NaN))
 
     LinBESolver(α, linop, factors, lin.solver, lin.isadjustable, lin.preconditioner, rhs!)
 end
@@ -137,6 +128,9 @@ function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
     lin.α = α
     FT = eltype(Q)
     lin.linop = EulerOperator(rhs!, -α)
+
+    # for direct solver, update factors
+    # for iterative solver, set factors to Nothing (TODO optimize)
     lin.factors = prefactorize(lin.linop, lin.solver, Q, nothing, FT(NaN),)
 end
 
