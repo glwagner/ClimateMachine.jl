@@ -22,71 +22,80 @@
 
 # ## Equations solved:
 # -------------- First Moment Equations:
-#                grid mean
+#                grid mean, ⟨⋅⟩
 # ```math
 # \begin{align}
 # \frac{∂ ρ}{∂ t} = - ∇ ⋅ (ρu)
-# \frac{∂ ρ u}{∂ t} = - ∇ ⋅ (-ρaK ∇u0 - ρ*MF_{u}) - ∇ ⋅ (ρu u' ) + S_{surface Friction}
-# \frac{∂ ρ e_{int}}{∂ t} = - ∇ ⋅ (-ρaK ∇e_{int,0} - ρ*MF_{e_int}) - ∇ ⋅ (u ρ e_{int} ) + S_{microphysics}
-# \frac{∂ ρ q_{tot}}{∂ t} = - ∇ ⋅ (-ρaK ∇E_{tot,0} - ρ*MF_{q_tot}) - ∇ ⋅ (u ρ q_{tot} ) + S_{microphysics}
+# \frac{∂ ρ ⟨u⟩}{∂ t} = - ∇ ⋅ (-ρaK ∇u0 - ρ*MF_{u}) - ∇ ⋅ (ρ⟨u⟩ ⟨u⟩' ) + S_{surface Friction}
+# \frac{∂ ρ ⟨e⟩_{int}}{∂ t} = - ∇ ⋅ (-ρaK ∇e_{int,0} - ρ*MF_{e_int}) - ∇ ⋅ (u ρ ⟨e⟩_{int} ) + S_{microphysics}
+# \frac{∂ ρ ⟨q⟩_{tot}}{∂ t} = - ∇ ⋅ (-ρaK ∇E_{tot,0} - ρ*MF_{q_tot}) - ∇ ⋅ (u ρ ⟨q⟩_{tot} ) + S_{microphysics}
 # \end{align}
 # ```
 # here the Mass-Flux term for a variable \phi is defined as:
 # ```math
 # \begin{align}
-# MF_ϕ = \sum{a_i * (w_i-w0)(ϕ_i-ϕ0)}_{i=1:N}
+# MF_ϕ = \sum_{i \ge 1}^{N}(a_i * (\bar{w}_i-\bar{w}0)(\bar{ϕ}_i-\bar{ϕ}0))
 # \end{align}
+# ```
+
 # and
 # K is the Eddy_Diffusivity, given as a function of environmental variables
 #
 #                i'th updraft equations (no second order flux)
-# ``
 # ```math
 # \begin{align}
-# \frac{∂ ρa_i}{∂ t}           = - ∇ ⋅ (ρu_i)         + (E_{i0}           - Δ_{i0})
-# \frac{∂ ρa_i u_i}{∂ t}       = - ∇ ⋅ (ρu_i u_i')    + (E_{i0}*u_0       - Δ_{i0}*u_i)       + ↑*(ρa_i*b - a_i\frac{∂p^†}{∂z})
-# \frac{∂ ρa_i e_{int,i}}{∂ t} = - ∇ ⋅ (ρu*e_{int,i}) + (E_{i0}*e_{int,0} - Δ_{i0}*e_{int,i}) + ρS_{int,i} # change to theta
-# \frac{∂ ρa_i q_{tot,i}}{∂ t} = - ∇ ⋅ (ρu*q_{tot,i}) + (E_{i0}*q_{tot,0} - Δ_{i0}*q_{tot,i}) + ρS_{tot,i}
+# \frac{∂ ρa_i}{∂ t}           = - ∂/∂z (ρa_i \bar{w}_i) + (E_{i0} - Δ_{i0})
+# \frac{∂ ρa_i \bar{w}_i}{∂ t}       = - ∂/∂z (ρa_i \bar{w}_i \bar{w}_i) + (E_{i0}*\bar{w}_0       - Δ_{i0}*u_i) + ρa_i*b - a_i\frac{∂p^†}{∂z}
+# \frac{∂ ρa_i \bar{\theta}_{liq,i}}{∂ t} = - ∂/∂z (ρa_i \bar{w}_i *\bar{\theta}_{liq,i}) + (E_{i0}*\bar{\theta}_{liq,0} - Δ_{i0}*\bar{\theta}_{liq,i}) + ρS_{int,i}
+# \frac{∂ ρa_i \bar{q}_{tot,i}}{∂ t} = - ∂/∂z (ρa_i \bar{w}_i *\bar{q}_{tot,i}) + (E_{i0}*\bar{q}_{tot,0} - Δ_{i0}*\bar{q}_{tot,i}) + ρS_{tot,i}
 # \end{align}
-# here the subdomain buoyancy is defined as:
-# b = (b_i -  )/e_{int}
+# ```
+# here the subdomain and grid mean buoyancies are defined as:
+# ```math
+# \begin{align}
+# b = \frac{\bar{ρ}_i - ρ_{ref}}{⟨ρ⟩}
+# ⟨b⟩ = \frac{⟨ρ⟩ - ρ_{ref}}{⟨ρ⟩}
+# \end{align}
+# ```
 #
-#                environment equations first moment
-#
-# a0 = 1-sum{a_i}{i=1:N}
-# u0 = (⟨u⟩-sum{a_i*u_i}{i=1:N})/a0
-# E_int0 = (⟨E_int⟩-sum{a_i*E_int_i}{i=1:N})/a0
-# q_tot0 = (⟨q_tot⟩-sum{a_i*q_tot_i}{i=1:N})/a0
+#                Environment equations first moment
+# a_0 = 1-sum_{i \ge 1}^{N}(a_i)
+# \bar{w}_0 = (⟨w⟩-sum_{i \ge 1}^{N}a_i*\bar{w}_i)/a_0
+# \bar{\theta}_{liq,0} = (⟨\theta⟩_{liq}-sum_{i \ge 1}^{N}(a_i*\bar{\theta}_{liq,i}))/a_0
+# \bar{q}_{tot,0} = (⟨q_tot⟩-sum_{i \ge 1}^{N}(a_i*\bar{q}_{tot,i}))/a_0
 #
 #                environment equations second moment
-# ``
-#     "tendency"           "second order flux"       "first order flux"  "non-conservative source"
-# \frac{∂ ρa_0ϕ'ψ'}{∂ t} =  - ∇ ⋅ (-ρa_0⋅K⋅∇ϕ'ψ')  - ∇ ⋅ (u ρa_0⋅ϕ'ψ')   + 2ρa_0⋅K(∂_z⋅ϕ)(∂_z⋅ψ)  + (E_{i0}*ϕ'ψ' - Δ_{i0}*ϕ'ψ') + ρa_0⋅D_{ϕ'ψ',0} + ρa_0⋅S_{ϕ'ψ',0}
-# ``
+# ```math
+# \begin{align}
+# \frac{∂ ρa_0 \overline{ϕ'ψ'}_0}{∂ t} =  - ∇ ⋅ (-ρa_0⋅K⋅∂\overline{ϕ'ψ'}_0/∂z)
+# - ∇ ⋅ (u ρa_0⋅\overline{ϕ'ψ'}_0)   + 2ρa_0⋅K(∂\bar{ϕ}/∂z)(∂\bar{ψ}/∂z)
+# + (\sum_{i \ge 1}^{N} (E_{i0}*\overline{ϕ'ψ'}_i) - Δ_{i0}*\overline{ϕ'ψ'}_0)
+# + ρa_0⋅D_{ϕ'ψ',0} + ρa_0⋅S_{ϕ'ψ',0}
+# \end{align}
+# ```
+# Ideal gas law and subdomain density
+# ```math
+# \begin{align}
+# ρ_i = ⟨p⟩/R_{m,i} * \bar{T}_i
+# \end{align}
+# ```
 
-# --------------------- Ideal gas law and subdomain density
-# ``
-# T_i, q_l  = saturation adjustment(e_int, q_tot)
-# TempShamEquil(e_int,q_tot,p)
-# ρ_i = <p>/R_{m,i} * T_i
-# b = -g(ρ_i-ρ_h)<ρ>
 
 # where
-#  - `t`        is time
-#  - `z`        is height
-#  - `ρ`        is the density
-#  - `u`        is the 3D velocity vector
-#  - `e_int`    is the internal energy
-#  - `q_tot`    is the total specific humidity
-#  - `K`        is the eddy diffusivity
-#  - `↑`        is the upwards pointing unit vector
-#  - `b`        is the buoyancy
-#  - `E_{i0}`   is the entrainment rate from the environment into i
-#  - `Δ_{i0}`   is the detrainment rate from i to the environment
-#  - `ϕ'ψ'`     is a shorthand for \overline{ϕ'ψ'}_0 the environmental covariance of ϕ and ψ
-#  - `D`        is a covariance dissipation
-#  - `S_{ϕ,i}`  is a source of ϕ in the i'th subdomain
-#  - `∂_z`      is the vertical partial derivative
+#  * `t`           is time
+#  * `z`           is height
+#  * `ρ`           is the density
+#  * `w`           is the vertical velocity
+#  * `e_int`       is the internal energy
+#  * `\theta_liq`  is the internal energy
+#  * `q_tot`       is the total specific humidity
+#  * `K`           is the eddy diffusivity
+#  * `b`           is the buoyancy
+#  * `E_{i0}`      is the entrainment rate from the environment into i
+#  * `Δ_{i0}`      is the detrainment rate from i to the environment
+#  * `\overline{ϕ'ψ'}_0` is the environmental covariance of ϕ and ψ
+#  * `D`           is a covariance dissipation
+#  * `S_{ϕ,i}`     is a source of ϕ in the i'th subdomain
 
 # --------------------- Initial Conditions
 # Initial conditions are given for all variables in the grid mean, and subdomain variables assume their grid mean values
@@ -194,6 +203,9 @@ function vars_state(::Updraft, ::Auxiliary, FT)
         T::FT,
         H::FT,
         H_integ::FT,
+        θ_liq::FT,
+        q_tot::FT,
+        w::FT,
     )
 end
 
@@ -446,6 +458,9 @@ function turbconv_nodal_update_auxiliary_state!(
         ρ_i = air_density(ts)
         up_a[i].buoyancy = -_grav * (ρ_i - aux.ref_state.ρ) * ρinv
         up_a[i].a = up[i].ρa * ρinv
+        up_a[i].θ_liq = up[i].ρaθ_liq/up[i].ρa
+        up_a[i].q_tot = up[i].ρaq_tot/up[i].ρa
+        up_a[i].w = up[i].ρaw/up[i].ρa
     end
     b_gm = grid_mean_b(state, aux, N_up)
 
@@ -981,21 +996,23 @@ function turbconv_normal_boundary_flux_second_order!(
 
     turbconv = m.turbconv
     N = n_updrafts(turbconv)
-    up = state⁺.turbconv.updraft
-    en = state⁺.turbconv.environment
-    up_d = diff⁺.turbconv.updraft
-    en_d = diff⁺.turbconv.environment
+    # up = state⁺.turbconv.updraft
+    # en = state⁺.turbconv.environment
+    # up_d = diff⁺.turbconv.updraft
+    # en_d = diff⁺.turbconv.environment
+    up_f = fluxᵀn.turbconv.updraft
+    en_f = fluxᵀn.turbconv.environment
     if bctype == 2 # top
         ntuple(N_up) do i
-            up_d[i].ρaw = FT(0)
-            up_d[i].ρa = FT(0)
-            up_d[i].ρaθ_liq = FT(0)
-            up_d[i].ρaq_tot = FT(0)
+            up_f[i].ρaw      = -n⁻ * FT(0)
+            up_f[i].ρa       = -n⁻ * FT(0)
+            up_f[i].ρaθ_liq  = -n⁻ * FT(0)
+            up_f[i].ρaq_tot  = -n⁻ * FT(0)
         end
-        en_d.∇tke = -n⁻ * FT(0)
-        en_d.∇e_int_cv = -n⁻ * FT(0)
-        en_d.∇q_tot_cv = -n⁻ * FT(0)
-        en_d.∇e_int_q_tot_cv = -n⁻ * FT(0)
+        en_f.∇tke            = -n⁻ * FT(0)
+        en_f.∇e_int_cv       = -n⁻ * FT(0)
+        en_f.∇q_tot_cv       = -n⁻ * FT(0)
+        en_f.∇e_int_q_tot_cv = -n⁻ * FT(0)
     end
 end;
 
