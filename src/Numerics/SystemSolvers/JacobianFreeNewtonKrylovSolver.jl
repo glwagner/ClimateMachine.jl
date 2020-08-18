@@ -80,7 +80,6 @@ function donewtoniteration!(
     Q,
     Qrhs,
     solver::BatchedJacobianFreeNewtonKrylovSolver,
-    tol,
     args...,
 )
     FT = eltype(Q)
@@ -117,6 +116,7 @@ function donewtoniteration!(
             is our preconditioner
         2. apply jvp on w
     =#
+
     iters = linearsolve!(
         jvp!,
         nothing,
@@ -125,6 +125,7 @@ function donewtoniteration!(
         -R,
         args...,
     )
+
 
     # Newton correction
     Q .+= ΔQ

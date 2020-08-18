@@ -317,7 +317,7 @@ function initialize!(
         resnorms0 .= resnorms
     end
 
-    converged,  residual_norm = check_convergence(resnorms, resnorms0, atol, rtol)
+    converged,  residual_norm = batched_check_convergence(resnorms, resnorms0, atol, rtol)
     # if threshold === nothing
     #     threshold = rtol * residual_norm
     #     if threshold < atol
@@ -421,7 +421,7 @@ function doiteration!(
         # Current stopping criteria is based on the maximal column norm
         # TODO: Once we are able to batch the operator application, we
         # should revisit the termination criteria.
-        converged, residual_norm = check_convergence(resnorms, resnorms0, atol, rtol)
+        converged, residual_norm = batched_check_convergence(resnorms, resnorms0, atol, rtol)
         if converged; break; end
 
         # residual_norm = maximum(resnorms)
@@ -606,7 +606,7 @@ end
 
 
 
-function check_convergence(resnorms, resnorms0, atol, rtol)
+function batched_batched_check_convergence(resnorms, resnorms0, atol, rtol)
 
     # Current stopping criteria is based on the maximal column norm
     residual_norm = maximum(resnorms)

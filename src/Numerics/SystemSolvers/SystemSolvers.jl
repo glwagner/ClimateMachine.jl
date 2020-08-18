@@ -43,7 +43,8 @@ struct LSOnly <: AbstractNonlinearSolver
     linearsolver
 end
 
-function donewtoniteration!(linearoperator!, Q, Qrhs, solver::LSOnly, tol, args...)
+function donewtoniteration!(linearoperator!, Q, Qrhs, solver::LSOnly, args...)
+    @info "donewtoniteration! linearsolve!", args...
     linearsolve!(
         linearoperator!,
         nothing,
@@ -120,6 +121,7 @@ function nonlinearsolve!(
     Want the Jacobian action (jvp!) to behave just like
     a standard rhs evaluation as in (*)
     """
+
     # Create Jacobian action here?
     jvp! = (JΔQ, ΔQ, args...) -> apply_jacobian!(JΔQ, 
         implicitoperator!,
@@ -131,7 +133,7 @@ function nonlinearsolve!(
 
     while !converged && iters < max_newton_iters
         residual_norm, linear_iterations =
-            donewtoniteration!(implicitoperator!, jvp!, Q, Qrhs, solver, tol, args...)
+            donewtoniteration!(implicitoperator!, jvp!, Q, Qrhs, solver, args...)
         @info "Linear solver converged in $linear_iterations iterations"
         iters += 1
 
