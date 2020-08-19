@@ -159,14 +159,14 @@ function run(
 
     Q = init_ode_state(dg, FT(0))
 
-    linearsolver = ManyColumnLU()
-    # linearsolver = BatchedGeneralizedMinimalResidual(
-    #     lineardg,
-    #     Q;
-    #     atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
-    #     rtol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
-    #     # Maximum number of Krylov iterations in a column
-    # )
+    # linearsolver = ManyColumnLU()
+    linearsolver = BatchedGeneralizedMinimalResidual(
+        lineardg,
+        Q;
+        atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+        rtol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+        # Maximum number of Krylov iterations in a column
+    )
     # linearsolver = GeneralizedMinimalResidual(Q; M = 80, rtol = 1e-5)
 
     if split_explicit_implicit

@@ -154,7 +154,7 @@ let
                 # Now solve
                 linearsolve!(
                     linear_operator!,
-                    nothing, 
+                    nothing,
                     bgmres,
                     mpi_x,
                     mpi_b;
@@ -164,8 +164,8 @@ let
                 # check all solutions
                 norms = -zeros(n3)
                 for cidx in 1:n3
-                    sol = mpi_A[:, :, cidx] \ mpi_b.data[:, :, cidx][:]
-                    norms[cidx] = norm(sol - mpi_x.data[:, :, cidx][:])
+                    sol = Array(mpi_A[:, :, cidx]) \ Array(mpi_b.data[:, :, cidx])[:]
+                    norms[cidx] = norm(sol - Array(mpi_x.data[:, :, cidx])[:])
                 end
                 @test maximum(norms) < 3000ϵ
             end
@@ -229,14 +229,14 @@ let
                     M = tup[3] * tup[5],
                     forward_reshape = tup,
                     forward_permute = permute_tuple,
-                    atol = ϵ,
-                    rtol = ϵ,
+                    atol = 10ϵ,
+                    rtol = 10ϵ,
                 )
 
                 x_exact = copy(x)
                 linearsolve!(
                     columnwise_linear_operator!,
-                    nothing, 
+                    nothing,
                     bgmres,
                     x,
                     b,
