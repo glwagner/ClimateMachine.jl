@@ -189,7 +189,6 @@ function setup_backward_Euler_solver(
     α,
     f_imp!,
 )   
-    @info "NonLinearBackwardEulerSolver setup_backward_Euler_solver : ",  α
     FT = eltype(α)
     NonLinBESolver(
         α,

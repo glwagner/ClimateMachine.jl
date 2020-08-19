@@ -486,8 +486,6 @@ function doiteration!(
     converged ||
     initialize!(linearoperator!, factors, Q, Qrhs, solver, args...; restart = true)
 
-    @info converged, j, residual_norm
-
     (converged, j, residual_norm)
 end
 

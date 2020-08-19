@@ -50,9 +50,7 @@ function BatchedJacobianFreeNewtonKrylovSolver(
     M = 30,
 )
     FT = eltype(Q)
-    @info "Before"
     residual = similar(Q)
-    @info "After"
     return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, residual)
 end
 

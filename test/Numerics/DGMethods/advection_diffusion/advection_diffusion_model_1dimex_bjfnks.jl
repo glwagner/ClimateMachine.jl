@@ -176,13 +176,11 @@ function run(
         rtol = 1e-5,
     )
 
-    @info "Before creating BatchedJacobianFreeNewtonKrylovSolver"
     nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
         Q,
         linearsolver;
         tol = 1e-4,
     )
-    @info "After creating BatchedJacobianFreeNewtonKrylovSolver"
 
     """
     redesign
@@ -202,7 +200,7 @@ function run(
     ode_solver = ARK548L2SA2KennedyCarpenter(
         dg,
         vdg,
-        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true),
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true, lin_f_imp! = linvdg),
         Q;
         dt = dt,
         t0 = 0,

@@ -292,7 +292,7 @@ end
     end
 end
 
-include("JacobianFreeNewtonKrylovSolver.jl")
+include("jacobian_free_newton_krylov_solver.jl")
 include("generalized_minimal_residual_solver.jl")
 include("generalized_conjugate_residual_solver.jl")
 include("conjugate_gradient_solver.jl")
