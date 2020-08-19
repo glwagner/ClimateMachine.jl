@@ -221,9 +221,9 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
     #     update_backward_Euler_solver!(nlbesolver, Q, α)
     # end
 
-    # rhs! = EulerOperator(nlbesolver.f_imp!, -α)
+    rhs! = EulerOperator(nlbesolver.f_imp!, -α)
 
-    rhs! = nlbesolver.f_imp!
+    # rhs! = nlbesolver.f_imp!
 
     # if  nlbesolver.preconditioner
     #     # update the preconditioner, lin.factors

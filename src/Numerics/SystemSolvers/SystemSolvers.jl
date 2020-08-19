@@ -58,7 +58,7 @@ end
 
 function apply_jacobian!(
     JΔQ,
-    implicitoperator!,
+    rhs!,
     Q,
     dQ,
     ϵ,
@@ -79,8 +79,12 @@ function apply_jacobian!(
 
     Fq = similar(Q)
     Fqdq = similar(Q)
-    implicitoperator!(Fq, Q, args..., increment = false)
-    implicitoperator!(Fqdq, Q .+ e .* dQ, args..., increment = false)
+    # rhs!(Fq, Q, args..., increment = false)
+    # rhs!(Fqdq, Q .+ e .* dQ, args..., increment = false)
+
+    rhs!(Fq, Q, args...)
+    rhs!(Fqdq, Q .+ e .* dQ, args...)
+
     JΔQ .= (Fqdq .- Fq) ./ e
 end
 
