@@ -43,11 +43,11 @@ struct LSOnly <: AbstractNonlinearSolver
     linearsolver
 end
 
-function donewtoniteration!(linearoperator!, Q, Qrhs, solver::LSOnly, args...)
+function donewtoniteration!(implicitoperator!, linearoperator!, factors, Q, Qrhs, solver::LSOnly, args...)
     @info "donewtoniteration! linearsolve!", args...
     linearsolve!(
         linearoperator!,
-        nothing,
+        factors,
         solver.linearsolver,
         Q,
         Qrhs,
@@ -93,6 +93,7 @@ where `F = N(Q) - Qrhs`, N(Q) is
 
 """
 function nonlinearsolve!(
+    rhs!,
     solver::AbstractNonlinearSolver,
     Q::AT,
     Qrhs,
@@ -104,11 +105,10 @@ function nonlinearsolve!(
     tol = solver.tol
     converged = false
     iters = 0
-    implicitoperator! = solver.rhs!
 
     # Initialize NLSolver, compute initial residual
     initial_residual_norm =
-        initialize!(implicitoperator!, Q, Qrhs, solver, args...)
+        initialize!(rhs!, Q, Qrhs, solver, args...)
     if initial_residual_norm < tol
         converged = true
     end
@@ -122,18 +122,30 @@ function nonlinearsolve!(
     a standard rhs evaluation as in (*)
     """
 
-    # Create Jacobian action here?
+    # Create Jacobian action here, since Q is updated in the loop
     jvp! = (JΔQ, ΔQ, args...) -> apply_jacobian!(JΔQ, 
-        implicitoperator!,
+        rhs!,
         Q,
         ΔQ,
         solver.ϵ,
         args...,
     )
+    factors = nothing
 
     while !converged && iters < max_newton_iters
+
+        # factors is the approximation of the Jacobian dF(Q)
+        # if solver.preconditioner
+        #     # update the preconditioner, factors
+        #     FT = eltype(α)
+        #     # TODO what is the single_column
+        #     single_column = false
+        #     factors = preconditioner(solver.linrhs!, single_column, Q, nothing, FT(NaN), )
+        # end
+        
+
         residual_norm, linear_iterations =
-            donewtoniteration!(implicitoperator!, jvp!, Q, Qrhs, solver, args...)
+            donewtoniteration!(rhs!, jvp!, factors, Q, Qrhs, solver, args...)
         @info "Linear solver converged in $linear_iterations iterations"
         iters += 1
 

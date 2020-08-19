@@ -155,6 +155,16 @@ function run(
         direction = VerticalDirection(),
     )
 
+    linvdg = DGModel(
+        model,
+        grid,
+        RusanovNumericalFlux(),
+        CentralNumericalFluxSecondOrder(),
+        CentralNumericalFluxGradient(),
+        state_auxiliary = dg.state_auxiliary,
+        direction = VerticalDirection(),
+    )
+
     Q = init_ode_state(dg, FT(0))
 
     # linearsolver = GeneralizedMinimalResidual(Q; M = 30, rtol = 1e-5)
@@ -169,8 +179,7 @@ function run(
     @info "Before creating BatchedJacobianFreeNewtonKrylovSolver"
     nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
         Q,
-        vdg,
-        linearsolver,
+        linearsolver;
         tol = 1e-4,
     )
     @info "After creating BatchedJacobianFreeNewtonKrylovSolver"

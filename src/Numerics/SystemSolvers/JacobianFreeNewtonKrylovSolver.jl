@@ -36,16 +36,14 @@ mutable struct BatchedJacobianFreeNewtonKrylovSolver{ET, TT, AT} <: AbstractNonl
     tol::TT
     # Max number of Newton iterations
     M::Int
-    # nonlinear rhs
-    rhs!
     # Linear solver for the Jacobian system
     linearsolver
+    # residual
     residual::AT
 end
 
 function BatchedJacobianFreeNewtonKrylovSolver(
     Q,
-    rhs!,
     linearsolver;
     ϵ = 1.e-8,
     tol = 1.e-6,
@@ -55,11 +53,11 @@ function BatchedJacobianFreeNewtonKrylovSolver(
     @info "Before"
     residual = similar(Q)
     @info "After"
-    return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, rhs!, linearsolver, residual)
+    return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, residual)
 end
 
 function initialize!(
-    implicitoperator!,
+    rhs!,
     Q,
     Qrhs,
     solver::BatchedJacobianFreeNewtonKrylovSolver,
@@ -68,20 +66,25 @@ function initialize!(
     # where R = Qrhs - F(Q)
     R = solver.residual
     # Computes F(Q) and stores in R
-    implicitoperator!(R, Q, args...)
+    rhs!(R, Q, args...)
     # Computes R = R - Qrhs
     R .-= Qrhs
     return norm(R, weighted_norm)
 end
 
+# rhs!(Q) =  F(Q)
+# jvp!(Q)  = J(Q)ΔQ, here J(Q) = dF
+# factors(Q) is the approximation of J(Q)
 function donewtoniteration!(
-    implicitoperator!,
-    jvp!,
+    rhs!,   
+    jvp!,                
+    factors,
     Q,
     Qrhs,
     solver::BatchedJacobianFreeNewtonKrylovSolver,
     args...,
 )
+
     FT = eltype(Q)
     ΔQ = similar(Q)
     ΔQ .= FT(0.0)
@@ -92,18 +95,18 @@ function donewtoniteration!(
     # N = Groupsize.
     #=
 
-    R(Q) == 0, R = N - Qrhs, where N = implicitoperator!
+    R(Q) == 0, R = N - Qrhs, where N = rhs!
 
     N(Q) = Q - V(Q), where V(Q) is the 1-D nonlinear operator
 
     =#
 
     # Compute right-hand side for Jacobian system:
-    # JΔQ = -R
+    # J(Q)ΔQ = -R
     # where R = Qrhs - F(Q)
     R = solver.residual
     # Computes F(Q) and stores in R
-    implicitoperator!(R, Q, args...)
+    rhs!(R, Q, args...)
     # Computes R = R - Qrhs
     R .-= Qrhs
     r0norm = norm(R, weighted_norm)
@@ -117,9 +120,11 @@ function donewtoniteration!(
         2. apply jvp on w
     =#
 
+    # factors is an approximation of J(Q)
+
     iters = linearsolve!(
         jvp!,
-        nothing,
+        factors,
         solver.linearsolver,
         ΔQ,
         -R,
@@ -130,11 +135,12 @@ function donewtoniteration!(
     Q .+= ΔQ
 
     # Reevaluate residual with new solution
-    implicitoperator!(R, Q, args...)
+    rhs!(R, Q, args...)
     R .-= Qrhs
     resnorm = norm(R, weighted_norm)
     # @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
     #############################################################
     
+    error("stop in Newton")
     return resnorm, iters
 end
