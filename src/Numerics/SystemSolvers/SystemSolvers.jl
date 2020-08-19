@@ -11,6 +11,7 @@ using ..DGMethods: DGModel
 using ..BalanceLaws
 
 using Adapt
+using CUDA
 using LinearAlgebra
 using LazyArrays
 using StaticArrays
