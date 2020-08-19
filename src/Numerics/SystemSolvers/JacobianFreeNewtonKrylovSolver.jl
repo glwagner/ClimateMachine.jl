@@ -141,6 +141,5 @@ function donewtoniteration!(
     # @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
     #############################################################
     
-    error("stop in Newton")
     return resnorm, iters
 end

@@ -223,6 +223,7 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
 
     rhs! = EulerOperator(nlbesolver.f_imp!, -α)
 
+    linrhs! = nlbesolver.preconditioner ? EulerOperator(nlbesolver.lin_f_imp!, -α) : nothing
     # rhs! = nlbesolver.f_imp!
 
     # if  nlbesolver.preconditioner
@@ -236,6 +237,7 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
     # Call "solve" function in SystemSolvers
     nonlinearsolve!(
         rhs!,
+        linrhs!,
         nlbesolver.nlsolver,
         Q,
         Qhat,
