@@ -28,7 +28,13 @@ if generate_tutorials
                 "Atmos/agnesi_nh_lin.jl",
         ],
         "Ocean" => [],
-        "Land" => ["Heat" => ["Heat Equation" => "Land/Heat/heat_equation.jl"]],
+        "Land" => [
+            "Heat" => [
+                "Heat Equation" => "Land/Heat/heat_equation.jl",
+                "Heat Equation - Compare steppers" =>
+                    "Land/Heat/compare_steppers.jl",
+            ],
+        ],
         "Numerics" => [
             "System Solvers" => [
                 "Conjugate Gradient" => "Numerics/SystemSolvers/cg.jl",
