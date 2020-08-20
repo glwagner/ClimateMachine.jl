@@ -84,7 +84,7 @@ mutable struct BatchedGeneralizedMinimalResidual{
     "residual norm in each column"
     resnorms::resT
     "initial residual norm in each column"
-    resnorms0::res0T
+    initial_resnorms::res0T
     forward_reshape::FRS
     forward_permute::FPR
     backward_reshape::BRS
@@ -128,7 +128,7 @@ mutable struct BatchedGeneralizedMinimalResidual{
         # and recording column-norms
         sol = fill!(ArrayType{FT}(undef, dofperbatch, Nbatch), 0)
         resnorms = fill!(ArrayType{FT}(undef, Nbatch), 0)
-        resnorms0 = fill!(ArrayType{FT}(undef, Nbatch), 0)
+        initial_resnorms = fill!(ArrayType{FT}(undef, Nbatch), 0)
 
         @assert dofperbatch * Nbatch == length(Q)
 
@@ -145,7 +145,7 @@ mutable struct BatchedGeneralizedMinimalResidual{
         gT = typeof(g0)
         sT = typeof(sol)
         resT = typeof(resnorms)
-        res0T = typeof(resnorms0)
+        res0T = typeof(initial_resnorms)
         FRS = typeof(forward_reshape)
         FPR = typeof(forward_permute)
         BRS = typeof(backward_reshape)
@@ -180,7 +180,7 @@ mutable struct BatchedGeneralizedMinimalResidual{
             Nbatch,
             dofperbatch,
             resnorms,
-            resnorms0,
+            initial_resnorms,
             forward_reshape,
             forward_permute,
             backward_reshape,
@@ -318,7 +318,7 @@ function initialize!(
     forward_reshape = solver.forward_reshape
     forward_permute = solver.forward_permute
     resnorms = solver.resnorms
-    resnorms0 = solver.resnorms0
+    initial_resnorms = solver.initial_resnorms
     max_iter = solver.max_iter
 
     # Device and groupsize information
@@ -363,11 +363,13 @@ function initialize!(
     # otherwise we may not get an accurate indication that we have sufficiently
     # reduced the GMRES residual.
     if !restart
-        resnorms0 .= resnorms
+        initial_resnorms .= resnorms
     end
+    residual_norm = maximum(resnorms)
+    initial_residual_norm = maximum(initial_resnorms)
+    converged =
+        check_convergence(residual_norm, initial_residual_norm, atol, rtol)
 
-    converged, residual_norm =
-        check_convergence(resnorms, resnorms0, atol, rtol)
     converged, residual_norm
 end
 
@@ -396,7 +398,8 @@ function doiteration!(
     backward_reshape = solver.backward_reshape
     backward_permute = solver.backward_permute
     resnorms = solver.resnorms
-    resnorms0 = solver.resnorms0
+    initial_resnorms = solver.initial_resnorms
+    initial_residual_norm = maximum(initial_resnorms)
 
     # Device and groupsize information
     device = array_device(Q)
@@ -448,8 +451,9 @@ function doiteration!(
         # Current stopping criteria is based on the maximal column norm
         # TODO: Once we are able to batch the operator application, we
         # should revisit the termination criteria.
-        converged, residual_norm =
-            check_convergence(resnorms, resnorms0, atol, rtol)
+        residual_norm = maximum(resnorms)
+        converged =
+            check_convergence(residual_norm, initial_residual_norm, atol, rtol)
         if converged
             break
         end
@@ -535,13 +539,13 @@ end
     @inbounds for i in 1:j
         H[cidx, i, j] = FT(0.0)
         # Modified Gram-Schmidt procedure to generate the Hessenberg matrix
-        @inbounds for k in 1:Ndof
+        for k in 1:Ndof
             H[cidx, i, j] +=
                 batched_krylov_basis[j + 1, k, cidx] *
                 batched_krylov_basis[i, k, cidx]
         end
         # Orthogonalize new Krylov vector against previous one
-        @inbounds for k in 1:Ndof
+        for k in 1:Ndof
             batched_krylov_basis[j + 1, k, cidx] -=
                 H[cidx, i, j] * batched_krylov_basis[i, k, cidx]
         end
@@ -554,7 +558,7 @@ end
             batched_krylov_basis[j + 1, i, cidx] *
             batched_krylov_basis[j + 1, i, cidx]
     end
-    H[cidx, j + 1, j] = sqrt(local_norm)
+    @inbounds H[cidx, j + 1, j] = sqrt(local_norm)
     @inbounds for i in 1:Ndof
         batched_krylov_basis[j + 1, i, cidx] /= H[cidx, j + 1, j]
     end
@@ -617,7 +621,7 @@ end
     # Do the upper-triangular backsolve
     @inbounds for i in j:-1:1
         g0s[cidx, i] /= Hs[cidx, i, i]
-        @inbounds for k in 1:(i - 1)
+        for k in 1:(i - 1)
             g0s[cidx, k] -= Hs[cidx, k, i] * g0s[cidx, i]
         end
     end
@@ -625,7 +629,7 @@ end
     # Having determined yᵢ, we now construct the GMRES solution
     # in each column: xⱼ = ∑ᵢ yᵢ Ψᵢ
     @inbounds for i in 1:j
-        @inbounds for k in 1:Ndof
+        for k in 1:Ndof
             sols[k, cidx] += g0s[cidx, i] * batched_krylov_basis[i, k, cidx]
         end
     end
@@ -660,11 +664,11 @@ end
 @inline convert_structure!(x::MPIStateArray, y, reshape_tuple, permute_tuple) =
     convert_structure!(x.realdata, y, reshape_tuple, permute_tuple)
 
-function check_convergence(resnorms, resnorms0, atol, rtol)
-    # Current stopping criteria is based on the maximal column norm
-    residual_norm = maximum(resnorms)
-    residual_norm0 = maximum(resnorms0)
-    threshold = residual_norm0 * rtol
-    converged = (residual_norm < threshold)
-    return converged, residual_norm
+function check_convergence(residual_norm, initial_residual_norm, atol, rtol)
+    relative_residual = residual_norm / initial_residual_norm
+    converged = false
+    if (residual_norm ≤ atol || relative_residual ≤ rtol)
+        converged = true
+    end
+    return converged
 end
