@@ -1,4 +1,7 @@
 export LinearBackwardEulerSolver, AbstractBackwardEulerSolver
+export NonLinearBackwardEulerSolver
+
+abstract type AbstractImplicitOperator end
 
 """
     op! = EulerOperator(f!, ϵ)
@@ -15,7 +18,7 @@ f!(dQ, Q, args...)
 LQ .= Q .+ ϵ .* dQ
 ```
 """
-mutable struct EulerOperator{F, FT}
+mutable struct EulerOperator{F, FT} <: AbstractImplicitOperator
     f!::F
     ϵ::FT
 end
@@ -88,8 +91,9 @@ time step size.
 struct LinearBackwardEulerSolver{LS}
     solver::LS
     isadjustable::Bool
-    LinearBackwardEulerSolver(solver; isadjustable = false) =
-        new{typeof(solver)}(solver, isadjustable)
+    preconditioner::Bool
+    LinearBackwardEulerSolver(solver; isadjustable = false, preconditioner = false) =
+        new{typeof(solver)}(solver, isadjustable, preconditioner)
 end
 
 """
@@ -98,39 +102,123 @@ end
 Concrete implementation of an `AbstractBackwardEulerSolver` to use linear
 solvers of type `AbstractSystemSolver`. See helper type
 [`LinearBackwardEulerSolver`](@ref)
+```
+    Q = Qhat + α f(Q, param, time)
+```
 """
-mutable struct LinBESolver{FT, FAC, LS, F} <: AbstractBackwardEulerSolver
+mutable struct LinBESolver{FT, F, LS} <: AbstractBackwardEulerSolver
     α::FT
-    factors::FAC
+    f_imp!::F
     solver::LS
     isadjustable::Bool
-    rhs!::F
+    preconditioner::Bool
+    factors
 end
+
 Δt_is_adjustable(lin::LinBESolver) = lin.isadjustable
 
-function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, rhs!)
+function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, f_imp!)
     FT = eltype(α)
-    factors =
-        prefactorize(EulerOperator(rhs!, -α), lin.solver, Q, nothing, FT(NaN))
-    LinBESolver(α, factors, lin.solver, lin.isadjustable, rhs!)
+    rhs! = EulerOperator(f_imp!, -α)
+
+    factors = prefactorize(rhs!, lin.solver, Q, nothing, FT(NaN))
+
+    LinBESolver(α, f_imp!, lin.solver, lin.isadjustable, lin.preconditioner, factors)
 end
 
 function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
     lin.α = α
     FT = eltype(Q)
-    lin.factors = prefactorize(
-        EulerOperator(lin.rhs!, -α),
-        lin.solver,
-        Q,
-        nothing,
-        FT(NaN),
-    )
+    # for direct solver, update factors
+    # for iterative solver, set factors to Nothing (TODO optimize)
+    lin.factors = prefactorize(EulerOperator(lin.f_imp!, -α), lin.solver, Q, nothing, FT(NaN),)
 end
 
 function (lin::LinBESolver)(Q, Qhat, α, p, t)
+    rhs! = EulerOperator(lin.f_imp!, -α)
+
     if lin.α != α
         @assert lin.isadjustable
         update_backward_Euler_solver!(lin, Q, α)
     end
-    linearsolve!(lin.factors, lin.solver, Q, Qhat, p, t)
+
+    if lin.preconditioner
+        # update the preconditioner, lin.factors
+        FT = eltype(α)
+        # TODO what is the single_column
+        single_column = false
+        lin.factors = construct_preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+    end
+    linearsolve!(rhs!, lin.factors, lin.solver, Q, Qhat, p, t)
+end
+
+
+###################################################################################################
+struct NonLinearBackwardEulerSolver{NLS}
+    nlsolver::NLS
+    isadjustable::Bool
+    # preconditioner
+    preconditioner::Bool
+    function NonLinearBackwardEulerSolver(nlsolver; isadjustable = false, preconditioner = false)
+        NLS = typeof(nlsolver)
+        return new{NLS}(nlsolver, isadjustable, preconditioner)
+    end
+end
+
+mutable struct NonLinBESolver{FT, F, NLS} <: AbstractBackwardEulerSolver
+    α::FT
+    f_imp!::F
+    nlsolver::NLS
+    isadjustable::Bool
+    # preconditioner
+    preconditioner::Bool
+    # preconditioner factors, has α information
+    factors
+    
+end
+
+Δt_is_adjustable(nlsolver::NonLinBESolver) = nlsolver.isadjustable
+
+function setup_backward_Euler_solver(
+    nlsolver::NonLinearBackwardEulerSolver,
+    Q,
+    α,
+    f_imp!,
+)   
+    FT = eltype(α)
+    NonLinBESolver(
+        α,
+        f_imp!,
+        nlsolver.nlsolver,
+        nlsolver.isadjustable,
+        nlsolver.preconditioner, 
+        nothing
+    )
+end
+
+# function update_backward_Euler_solver!(nlbesolver::NonLinBESolver, Q, α)
+#     # TODO: What else needs to be updated? The linear solver?
+#     # Should the `NonLinBESolver` object also point to
+#     # a corresponding `LinBESolver` for the linear problem?
+
+#     @info "NonLinBESolver update_backward_Euler_solver!"
+#     nlbesolver.α = α
+#     update_backward_Euler_solver!(nlbesolver.nlsolver.lsolver, Q, α)
+# end
+
+function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
+
+
+    rhs! = EulerOperator(nlbesolver.f_imp!, -α)
+
+    # Call "solve" function in SystemSolvers
+    nonlinearsolve!(
+        rhs!,
+        nlbesolver.preconditioner,
+        nlbesolver.nlsolver,
+        Q,
+        Qhat,
+        p,
+        t,
+    )
 end

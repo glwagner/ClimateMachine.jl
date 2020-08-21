@@ -54,13 +54,13 @@ function main()
 
     mpicomm = MPI.COMM_WORLD
 
-    polynomialorder = 5
-    numelem_horz = 10
-    numelem_vert = 5
+    polynomialorder = 2
+    numelem_horz = 2
+    numelem_vert = 2
 
-    timeend = 60 * 60
+    timeend = 1 * 60
     # timeend = 33 * 60 * 60 # Full simulation
-    outputtime = 60 * 60
+    outputtime = 1 * 60
 
     expected_result = Dict()
     expected_result[Float32] = 9.5066030866432000e+13
@@ -118,7 +118,7 @@ function run(
     δ_χ = @SVector [FT(ii) for ii in 1:ntracers]
 
     model = AtmosModel{FT}(
-        AtmosLESConfigType,
+        AtmosGCMConfigType,
         param_set;
         orientation = SphericalOrientation(),
         ref_state = HydrostaticState(T_profile),
@@ -159,7 +159,15 @@ function run(
 
     Q = init_ode_state(dg, FT(0))
 
-    linearsolver = ManyColumnLU()
+    # linearsolver = ManyColumnLU()
+    linearsolver = BatchedGeneralizedMinimalResidual(
+        lineardg,
+        Q;
+        atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+        rtol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+        # Maximum number of Krylov iterations in a column
+    )
+    # linearsolver = GeneralizedMinimalResidual(Q; M = 80, rtol = 1e-5)
 
     if split_explicit_implicit
         rem_dg = remainder_DGModel(
@@ -174,7 +182,7 @@ function run(
     odesolver = ARK2GiraldoKellyConstantinescu(
         split_explicit_implicit ? rem_dg : dg,
         lineardg,
-        LinearBackwardEulerSolver(linearsolver; isadjustable = false),
+        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = true),
         Q;
         dt = dt,
         t0 = 0,

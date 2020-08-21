@@ -11,6 +11,7 @@ using ..DGMethods: DGModel
 using ..BalanceLaws
 
 using Adapt
+using CUDA
 using LinearAlgebra
 using LazyArrays
 using StaticArrays
@@ -26,8 +27,9 @@ LinearAlgebra.norm(A::AbstractVector, p::Real, weighted::Bool) = norm(A, p)
 LinearAlgebra.norm(A::AbstractVector, weighted::Bool) = norm(A, 2, weighted)
 LinearAlgebra.dot(A::AbstractVector, B::AbstractVector, weighted) = dot(A, B)
 
-export linearsolve!, settolerance!, prefactorize
+export linearsolve!, settolerance!, prefactorize, preconditioner, preconditioner_solve!
 export AbstractSystemSolver, AbstractIterativeSystemSolver
+export nonlinearsolve!
 
 """
     AbstractSystemSolver
@@ -35,6 +37,144 @@ export AbstractSystemSolver, AbstractIterativeSystemSolver
 This is an abstract type representing a generic linear solver.
 """
 abstract type AbstractSystemSolver end
+
+abstract type AbstractNonlinearSolver <: AbstractSystemSolver end
+
+struct LSOnly <: AbstractNonlinearSolver
+    linearsolver
+end
+
+function donewtoniteration!(implicitoperator!, linearoperator!, factors, Q, Qrhs, solver::LSOnly, args...)
+    @info "donewtoniteration! linearsolve!", args...
+    linearsolve!(
+        linearoperator!,
+        factors,
+        solver.linearsolver,
+        Q,
+        Qrhs,
+        args...;
+        max_iters = getmaxiterations(solver.linearsolver),
+    )
+end
+
+function apply_jacobian!(
+    JΔQ,
+    rhs!,
+    Q,
+    dQ,
+    ϵ,
+    args...,
+)
+    n = length(dQ)
+    normdQ = norm(dQ, weighted_norm)
+
+    if normdQ > ϵ
+        factor = (1 / (n*normdQ))
+    else
+        # initial newton step, ΔQ = 0
+        factor = 1 / n
+    end
+
+    β = √ϵ
+    e = factor * β * sum(abs.(Q)) + β
+
+    Fq = similar(Q)
+    Fqdq = similar(Q)
+    # rhs!(Fq, Q, args..., increment = false)
+    # rhs!(Fqdq, Q .+ e .* dQ, args..., increment = false)
+
+    rhs!(Fq, Q, args...)
+    rhs!(Fqdq, Q .+ e .* dQ, args...)
+
+    JΔQ .= (Fqdq .- Fq) ./ e
+end
+
+"""
+
+Solving F(Q) == 0 via Newton,
+
+where `F = N(Q) - Qrhs`, N(Q) is
+`implicitoperator!`.
+
+"""
+function nonlinearsolve!(
+    rhs!,
+    preconditioner::Bool,
+    solver::AbstractNonlinearSolver,
+    Q::AT,
+    Qrhs,
+    args...;
+    max_newton_iters = 10,
+    cvg = Ref{Bool}(),
+) where {AT}
+
+    tol = solver.tol
+    converged = false
+    iters = 0
+
+    # Initialize NLSolver, compute initial residual
+    initial_residual_norm =
+        initialize!(rhs!, Q, Qrhs, solver, args...)
+    if initial_residual_norm < tol
+        converged = true
+    end
+    converged && return iters
+
+    """
+    Want:
+        (*) linearoperator!(Result, CurrentState:ΔQ, args...)
+    
+    Want the Jacobian action (jvp!) to behave just like
+    a standard rhs evaluation as in (*)
+    """
+
+    # Create Jacobian action here, since Q is updated in the loop
+    jvp! = (JΔQ, ΔQ, args...) -> apply_jacobian!(JΔQ, 
+        rhs!,
+        Q,
+        ΔQ,
+        solver.ϵ,
+        args...,
+    )
+    factors = nothing
+
+    while !converged && iters < max_newton_iters
+
+        # factors is the approximation of the Jacobian dF(Q)
+        if preconditioner
+            # update the preconditioner, factors
+            FT = eltype(Q)
+            # TODO what is the single_column
+            single_column = false
+            factors = construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        end
+        
+
+        residual_norm, linear_iterations =
+            donewtoniteration!(rhs!, jvp!, factors, Q, Qrhs, solver, args...)
+        @info "Linear solver converged in $linear_iterations iterations"
+        iters += 1
+
+        if !isfinite(residual_norm)
+            error("norm of residual is not finite after $iters iterations of `donewtoniteration!`")
+        end
+
+        # Check residual_norm / norm(R0)
+        # Comment: Should we check "correction" magitude?
+        # ||Delta Q|| / ||Q|| ?
+        relresidual = residual_norm / initial_residual_norm
+        # @info "Relative residual, current residual, initial residual: $relresidual, $residual_norm, $initial_residual_norm" 
+        if relresidual < tol || residual_norm < tol
+            @info "Newton converged in $iters iterations!"
+            converged = true
+        end
+    end
+
+    converged || @warn "Nonlinear solver did not attain convergence after $iters iterations"
+    cvg[] = converged
+
+    iters
+end
 
 """
     AbstractIterativeSystemSolver
@@ -63,6 +203,7 @@ settolerance!(
 
 doiteration!(
     linearoperator!,
+    factors,
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
@@ -70,25 +211,26 @@ doiteration!(
     args...,
 ) = throw(MethodError(
     doiteration!,
-    (linearoperator!, Q, Qrhs, solver, tolerance, args...),
+    (linearoperator!, factors, Q, Qrhs, solver, tolerance, args...),
 ))
 
 initialize!(
     linearoperator!,
+    factors, 
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
     args...,
-) = throw(MethodError(initialize!, (linearoperator!, Q, Qrhs, solver, args...)))
+) = throw(MethodError(initialize!, (linearoperator!, factors, Q, Qrhs, solver, args...)))
 
 """
     prefactorize(linop!, linearsolver, args...)
 
 Prefactorize the in-place linear operator `linop!` for use with `linearsolver`.
 """
-prefactorize(linop!, linearsolver::AbstractIterativeSystemSolver, args...) =
-    linop!
-
+function prefactorize(linop!, linearsolver::AbstractIterativeSystemSolver, args...)
+    return nothing
+end
 """
     linearsolve!(linearoperator!, solver::AbstractIterativeSystemSolver, Q, Qrhs, args...)
 
@@ -102,9 +244,14 @@ L(Q) = Q_{rhs}
 using the `solver` and the initial guess `Q`. After the call `Q` contains the
 solution.  The arguments `args` is passed to `linearoperator!` when it is
 called.
+
+jvp! = (ΔQ) -> F(Q + ΔQ)
 """
+
+
 function linearsolve!(
     linearoperator!,
+    factors,
     solver::AbstractIterativeSystemSolver,
     Q,
     Qrhs,
@@ -114,14 +261,12 @@ function linearsolve!(
 )
     converged = false
     iters = 0
-
-    converged, threshold =
-        initialize!(linearoperator!, Q, Qrhs, solver, args...)
+    converged, residual_norm0 = initialize!(linearoperator!, factors, Q, Qrhs, solver, args...)
     converged && return iters
 
     while !converged && iters < max_iters
         converged, inner_iters, residual_norm =
-            doiteration!(linearoperator!, Q, Qrhs, solver, threshold, args...)
+            doiteration!(linearoperator!, factors, Q, Qrhs, solver, args...)
 
         iters += inner_iters
 
@@ -129,7 +274,7 @@ function linearsolve!(
             error("norm of residual is not finite after $iters iterations of `doiteration!`")
         end
 
-        achieved_tolerance = residual_norm / threshold * solver.rtol
+        achieved_tolerance = residual_norm / residual_norm0 * solver.rtol
     end
 
     converged || @warn "Solver did not attain convergence after $iters iterations"
@@ -148,10 +293,10 @@ end
     end
 end
 
+include("jacobian_free_newton_krylov_solver.jl")
 include("generalized_minimal_residual_solver.jl")
 include("generalized_conjugate_residual_solver.jl")
 include("conjugate_gradient_solver.jl")
 include("columnwise_lu_solver.jl")
 include("batched_generalized_minimal_residual_solver.jl")
-
 end

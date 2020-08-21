@@ -69,6 +69,45 @@ Base.@propagate_inbounds function Base.setindex!(
     A.data[I...] = val
 end
 
+
+# TODO is there the right place to put
+function construct_preconditioner(op, dg, single_column, Q, args...)
+    # dg = op.f!
+
+    # TODO: can we get away with just passing the grid?
+    A = banded_matrix(
+        op,
+        dg,
+        similar(Q),
+        similar(Q),
+        args...;
+        single_column = single_column,
+    )
+
+    band_lu!(A)
+
+    ColumnwiseLU(A)
+end
+
+# Inplace preconditioner solved 
+# Q = Pinv * Q
+# temp is just a temporary  variable
+function preconditioner_solve!(
+    clu::Union{ColumnwiseLU, Nothing},
+    Q;
+    temp,
+)
+    if isnothing(clu); return; end
+    A = clu.A
+    temp .= Q
+
+    band_forward!(temp, A)
+    band_back!(temp, A)
+
+    Q .= temp
+end
+
+
 function prefactorize(op, solver::AbstractColumnLUSolver, Q, args...)
     dg = op.f!
 
@@ -88,6 +127,7 @@ function prefactorize(op, solver::AbstractColumnLUSolver, Q, args...)
 end
 
 function linearsolve!(
+    linop,
     clu::ColumnwiseLU,
     ::AbstractColumnLUSolver,
     Q,
