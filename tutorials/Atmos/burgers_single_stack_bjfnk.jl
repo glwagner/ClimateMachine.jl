@@ -499,6 +499,7 @@ Q;
 dt = dt,
 t0 = 0,
 split_explicit_implicit = false,
+variant = NaiveVariant(),
 )
 
 
