@@ -64,15 +64,16 @@ function apply_jacobian!(
     dQ,
     ϵ,
     args...,
-)
+)   
+    FT = eltype(Q)
     n = length(dQ)
     normdQ = norm(dQ, weighted_norm)
 
     if normdQ > ϵ
-        factor = (1 / (n*normdQ))
+        factor = FT(1 / (n*normdQ))
     else
         # initial newton step, ΔQ = 0
-        factor = 1 / n
+        factor = FT(1 / n)
     end
 
     β = √ϵ
