@@ -141,13 +141,13 @@ function nonlinearsolve!(
     while !converged && iters < max_newton_iters
 
         # factors is the approximation of the Jacobian dF(Q)
-        if !isnothing(linrhs!)
+        #if !isnothing(jvp!)
             # update the preconditioner, factors
             FT = eltype(Q)
             # TODO what is the single_column
             single_column = false
-            factors = preconditioner(linrhs!, single_column, Q, nothing, FT(NaN), )
-        end
+            factors = preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        #end
         
 
         residual_norm, linear_iterations =

@@ -147,7 +147,7 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         FT = eltype(α)
         # TODO what is the single_column
         single_column = false
-        lin.factors = preconditioner(rhs!, single_column, Q, nothing, FT(NaN), )
+        lin.factors = preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
     end
     linearsolve!(rhs!, lin.factors, lin.solver, Q, Qhat, p, t)
 end

@@ -71,8 +71,8 @@ end
 
 
 # TODO is there the right place to put
-function preconditioner(op, single_column, Q, args...)
-    dg = op.f!
+function preconditioner(op, dg, single_column, Q, args...)
+    # dg = op.f!
 
     # TODO: can we get away with just passing the grid?
     A = banded_matrix(
