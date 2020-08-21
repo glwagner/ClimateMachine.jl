@@ -37,12 +37,9 @@ function entr_detr(
         nondimensional_exchange_functions(m, entr, state, aux, t, i)
 
     # I am commenting this out for now, to make sure there is no slowdown here
-    # Λ_1 = abs(Δb/Δw)
-    # Λ_2 = entr.c_λ * abs(Δb / (max(en.ρatke,0) + w_min))
-    # Λ = SVector(Λ_1, Λ_2)
-    # lower_bound = FT(0.1) # need to be moved ?
-    # upper_bound = FT(0.0005)
-    # λ = lamb_smooth_minimum(Λ, lower_bound, upper_bound)
+    # Λ_w = abs(Δb/Δw)
+    # Λ_tke = entr.c_λ * abs(Δb / (max(en.ρatke,0) + w_min))
+    # λ = lamb_smooth_minimum(SVector(Λ_w, Λ_tke)
     λ = abs(Δb / Δw)
 
     # compute limiters
@@ -50,13 +47,13 @@ function entr_detr(
     ε_lim = ε_limiter(up_area, sqrt_ϵ)
     δ_lim = δ_limiter(up_area, sqrt_ϵ)
     # compute entrainment/detrainmnet components
-    # ε_trb = 2 * up_area * entr.c_t * sqrt_tke / max( (w_up * up_area * up_a[i].updraft_top),FT(1e-4))
+    # ε_trb = 2 * up_area * entr.c_t * sqrt_tke /
+           # max( (w_up * up_area * up_a[i].updraft_top),FT(1e-4))
     ε_trb =
         2 * up_area * entr.c_t * sqrt_tke /
         max((w_up * up_area * FT(500)), sqrt_ϵ) * εt_lim
     ε_dyn = λ / max(abs(w_up), w_min) * (D_ε + M_ε + ε_lim)
     δ_dyn = λ / max(abs(w_up), w_min) * (D_δ + M_δ + δ_lim)
-
 
     ε_dyn = min(max(ε_dyn, FT(0)), FT(1))
     δ_dyn = min(max(δ_dyn, FT(0)), FT(1))

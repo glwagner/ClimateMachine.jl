@@ -210,7 +210,7 @@ function vars_state(::Updraft, ::Auxiliary, FT)
 end
 
 function vars_state(::Environment, ::Auxiliary, FT)
-    @vars(T::FT, cld_frac::FT, buoyancy::FT,)
+    @vars(T::FT, cld_frac::FT, buoyancy::FT,l_mix::FT)
 end
 
 function vars_state(m::EDMF, st::Auxiliary, FT)
@@ -368,8 +368,10 @@ function init_state_prognostic!(
     end
 
     # initialize environment covariance with zero for now
-    if (z<=2500.0)
+    if (z<=FT(2500))
         en.ρatke = gm.ρ*(FT(1) - z/FT(3000))
+    else
+        en.ρatke = FT(0)
     end
     en.ρaθ_liq_cv = FT(1e-5) / max(z, FT(10))
     en.ρaq_tot_cv = FT(1e-5) / max(z, FT(10))
@@ -474,14 +476,17 @@ function turbconv_nodal_update_auxiliary_state!(
     end
     en_a.buoyancy -= b_gm
 
+    ε_trb = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
+    δ_dyn = MArray{Tuple{N_up}, FT}(zeros(FT, N_up))
     ntuple(N_up) do i
-        ε_dyn, δ_dyn, ε_trb =
+        ε_dyn, δ_dyn[i] ,ε_trb[i]=
             entr_detr(m, m.turbconv.entr_detr, state, aux, t, i)
         up_a[i].ε_dyn = ε_dyn
-        up_a[i].δ_dyn = δ_dyn
-        up_a[i].ε_trb = ε_trb
+        up_a[i].δ_dyn = ε_trb[i]
+        up_a[i].ε_trb = δ_dyn[i]
         up_a[i].ε_δ = ε_dyn - δ_dyn
     end
+    en_a.l_mix = mixing_length(m, m.turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
 
 end;
 
@@ -742,8 +747,7 @@ function turbconv_source!(
         # pressure tke source from the i'th updraft
         en_s.ρatke += up[i].ρa * dpdz_tke_i
     end
-    # l_mix    = mixing_length(m, m.turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
-    l_mix = FT(500)
+    l_mix    = mixing_length(m, m.turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     K_eddy = m.turbconv.mix_len.c_m * l_mix * sqrt(tke_env)
     Shear² = diffusive.turbconv.S²
 
@@ -848,8 +852,7 @@ function flux_second_order!(
         ε_trb[i] = up_a[i].ε_trb
         δ_dyn[i] = FT(0)
     end
-    # l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
-    l_mix = FT(500)
+    l_mix = mixing_length(m, turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     en_area = environment_area(state, aux, N_up)
     tke_env = enforce_positivity(en.ρatke) / en_area * ρinv
     K_eddy = m.turbconv.mix_len.c_m * l_mix * sqrt(tke_env)
@@ -973,8 +976,7 @@ function turbconv_boundary_state!(
     end
 end;
 
-# The boundary conditions for `ρcT` are specified here for second-order
-# unknowns
+# The boundary conditions for second-order unknowns
 function turbconv_normal_boundary_flux_second_order!(
     nf,
     bc::EDMFBCs,

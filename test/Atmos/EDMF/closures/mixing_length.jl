@@ -50,9 +50,9 @@ function mixing_length(
 
     # compute L1
     if Nˢ_eff > eps(FT)
-        L_1 = min(sqrt(ml.c_b * tke) / Nˢ_eff, FT(1e6))
+        L_Nˢ = min(sqrt(ml.c_b * tke) / Nˢ_eff, FT(1e6))
     else
-        L_1 = FT(1.0e6)
+        L_Nˢ = FT(1.0e6)
     end
 
     # compute L2 - law of the wall  - YAIR define tke_surf
@@ -65,11 +65,11 @@ function mixing_length(
                                      gm_a,
                                      FT(60))
     if obukhov_length < FT(0)
-        L_2 =
-            (ml.κ * z / (sqrt(tke_surf) / ustar / ustar) * ml.c_m) *
-            min((FT(1) - FT(100) * z / obukhov_length)^FT(0.2), 1 / ml.κ)
+        L_W =
+            (ml.κ * z/(sqrt(tke_surf)*ml.c_m/ustar/ustar)) *
+            min((FT(1) - FT(100) * z / obukhov_length)^FT(0.2),FT(1)/ml.κ)
     else
-        L_2 = ml.κ * z / (sqrt(tke_surf) / ustar / ustar) * ml.c_k
+        L_W = ml.κ * z / (sqrt(tke_surf)*ml.c_m/ustar/ustar)
     end
 
     # compute L3 - entrainment detrainment sources
@@ -87,7 +87,6 @@ function mixing_length(
     end
 
     c_neg = ml.c_d * tke * sqrt(abs(tke))
-
     if abs(a) > FT(1e-9) && 4 * a * c_neg > -b^2
         l_entdet =
             max(-b / FT(2) / a + sqrt(b^2 + 4 * a * c_neg) / 2 / a, FT(0))
@@ -96,8 +95,18 @@ function mixing_length(
     else
         l_entdet = FT(0)
     end
-    L_3 = l_entdet
+    L_tke = l_entdet
 
-    l_mix = lamb_smooth_minimum(SVector(L_1, L_2, L_3))
+    if L_Nˢ<eps(FT) || L_Nˢ>FT(1e6)
+        L_Nˢ = FT(1e6)
+    end
+    if L_W<eps(FT) || L_W>FT(1e6)
+        L_W = FT(1e6)
+    end
+    if L_tke<eps(FT) || L_tke>FT(1e6)
+        L_tke = FT(1e6)
+    end
+
+    l_mix = lamb_smooth_minimum(SVector(L_Nˢ, L_W, L_tke))
     return l_mix
 end;
