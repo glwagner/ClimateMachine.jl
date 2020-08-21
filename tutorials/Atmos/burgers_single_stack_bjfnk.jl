@@ -68,9 +68,7 @@ using Distributions
 using OrderedCollections
 using Plots
 using StaticArrays
-using LinearAlgebra
-using Printf
-using Dates
+using LinearAlgebra: Diagonal, tr
 
 #  - load CLIMAParameters and set up to use it:
 using CLIMAParameters
@@ -85,7 +83,7 @@ using ClimateMachine.Writers
 using ClimateMachine.DGMethods
 using ClimateMachine.DGMethods.NumericalFluxes
 using ClimateMachine.BalanceLaws:
-BalanceLaw, Prognostic, Auxiliary, Gradient, GradientFlux
+    BalanceLaw, Prognostic, Auxiliary, Gradient, GradientFlux
 
 using ClimateMachine.Mesh.Geometry: LocalGeometry
 using ClimateMachine.MPIStateArrays
@@ -94,28 +92,26 @@ using ClimateMachine.SystemSolvers
 using ClimateMachine.ODESolvers
 using ClimateMachine.VariableTemplates
 using ClimateMachine.SingleStackUtils
-using ClimateMachine.VTK: writevtk, writepvtu
-
 
 #  - import necessary ClimateMachine modules: (`import`ing enables us to
 #  provide implementations of these structs/methods)
 using ClimateMachine.Orientations:
-Orientation,
-FlatOrientation,
-init_aux!,
-vertical_unit_vector,
-projection_tangential
+    Orientation,
+    FlatOrientation,
+    init_aux!,
+    vertical_unit_vector,
+    projection_tangential
 
 import ClimateMachine.BalanceLaws:
-vars_state,
-source!,
-flux_second_order!,
-flux_first_order!,
-compute_gradient_argument!,
-compute_gradient_flux!,
-init_state_auxiliary!,
-init_state_prognostic!,
-boundary_state!
+    vars_state,
+    source!,
+    flux_second_order!,
+    flux_first_order!,
+    compute_gradient_argument!,
+    compute_gradient_flux!,
+    init_state_auxiliary!,
+    init_state_prognostic!,
+    boundary_state!
 
 # ## Initialization
 
@@ -123,8 +119,6 @@ boundary_state!
 FT = Float64;
 # Initialize ClimateMachine for CPU.
 ClimateMachine.init(; disable_gpu = true);
-
-mpicomm = MPI.COMM_WORLD
 
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 
@@ -173,8 +167,8 @@ end
 orientation = FlatOrientation()
 
 m = BurgersEquation{FT, typeof(param_set), typeof(orientation)}(
-param_set = param_set,
-orientation = orientation,
+    param_set = param_set,
+    orientation = orientation,
 );
 
 # This model dictates the flow control, using [Dynamic Multiple
@@ -199,17 +193,17 @@ end
 # Specify prognostic variables, the variables solved for in the PDEs, for
 # `BurgersEquation`
 vars_state(::BurgersEquation, ::Prognostic, FT) =
-@vars(ρ::FT, ρu::SVector{3, FT}, ρcT::FT);
+    @vars(ρ::FT, ρu::SVector{3, FT}, ρcT::FT);
 
 # Specify state variables whose gradients are needed for `BurgersEquation`
 vars_state(::BurgersEquation, ::Gradient, FT) =
-@vars(u::SVector{3, FT}, ρcT::FT, ρu::SVector{3, FT});
+    @vars(u::SVector{3, FT}, ρcT::FT, ρu::SVector{3, FT});
 
 # Specify gradient variables for `BurgersEquation`
 vars_state(::BurgersEquation, ::GradientFlux, FT) = @vars(
-μ∇u::SMatrix{3, 3, FT, 9},
-α∇ρcT::SVector{3, FT},
-νd∇D::SMatrix{3, 3, FT, 9}
+    μ∇u::SMatrix{3, 3, FT, 9},
+    α∇ρcT::SVector{3, FT},
+    νd∇D::SMatrix{3, 3, FT, 9}
 );
 
 # ## Define the compute kernels
@@ -223,7 +217,7 @@ function init_state_auxiliary!(
     m::BurgersEquation,
     aux::Vars,
     geom::LocalGeometry,
-    )
+)
     aux.coord = geom.coord
     init_aux!(m.orientation, m.param_set, aux)
 end;
@@ -237,7 +231,7 @@ function init_state_prognostic!(
     aux::Vars,
     coords,
     t::Real,
-    )
+)
     z = aux.coord[3]
     ε1 = rand(Normal(0, m.σ))
     ε2 = rand(Normal(0, m.σ))
@@ -246,7 +240,7 @@ function init_state_prognostic!(
     ρv = 1 - 4 * (z - m.zmax / 2)^2 + ε2
     ρw = 0
     state.ρu = SVector(ρu, ρv, ρw)
-    
+
     state.ρcT = state.ρ * m.c * m.initialT
 end;
 
@@ -263,7 +257,7 @@ function compute_gradient_argument!(
     state::Vars,
     aux::Vars,
     t::Real,
-    )
+)
     transform.ρcT = state.ρcT
     transform.u = state.ρu / state.ρ
     transform.ρu = state.ρu
@@ -282,15 +276,15 @@ function compute_gradient_flux!(
     state::Vars,
     aux::Vars,
     t::Real,
-    ) where {FT}
+) where {FT}
     ∇ρu = ∇transform.ρu
     ẑ = vertical_unit_vector(m.orientation, m.param_set, aux)
     divergence = tr(∇ρu) - ẑ' * ∇ρu * ẑ
     diffusive.α∇ρcT = Diagonal(SVector(m.αh, m.αh, m.αv)) * ∇transform.ρcT
     diffusive.μ∇u = Diagonal(SVector(m.μh, m.μh, m.μv)) * ∇transform.u
     diffusive.νd∇D =
-    Diagonal(SVector(m.νd, m.νd, FT(0))) *
-    Diagonal(SVector(divergence, divergence, FT(0)))
+        Diagonal(SVector(m.νd, m.νd, FT(0))) *
+        Diagonal(SVector(divergence, divergence, FT(0)))
 end;
 
 # Introduce Rayleigh friction towards a target profile as a source.
@@ -303,18 +297,18 @@ function source!(
     diffusive::Vars,
     aux::Vars,
     args...,
-    ) where {FT}
+) where {FT}
     ẑ = vertical_unit_vector(m.orientation, m.param_set, aux)
     z = aux.coord[3]
     ρ̄ū =
-    state.ρ * SVector{3, FT}(
-    0.5 - 2 * (z - m.zmax / 2)^2,
-    0.5 - 2 * (z - m.zmax / 2)^2,
-    0.0,
-    )
+        state.ρ * SVector{3, FT}(
+            0.5 - 2 * (z - m.zmax / 2)^2,
+            0.5 - 2 * (z - m.zmax / 2)^2,
+            0.0,
+        )
     ρu_p = state.ρu - ρ̄ū
     source.ρu -=
-    m.γ * projection_tangential(m.orientation, m.param_set, aux, ρu_p)
+        m.γ * projection_tangential(m.orientation, m.param_set, aux, ρu_p)
 end;
 
 # Compute advective flux.
@@ -327,9 +321,9 @@ function flux_first_order!(
     aux::Vars,
     t::Real,
     _...,
-    )
+)
     flux.ρ = state.ρu
-    
+
     u = state.ρu / state.ρ
     flux.ρu = state.ρu * u'
     flux.ρcT = u * state.ρcT
@@ -347,7 +341,7 @@ function flux_second_order!(
     hyperdiffusive::Vars,
     aux::Vars,
     t::Real,
-    )
+)
     flux.ρcT -= diffusive.α∇ρcT
     flux.ρu -= diffusive.μ∇u
     flux.ρu -= diffusive.νd∇D
@@ -372,7 +366,7 @@ function boundary_state!(
     bctype,
     t,
     _...,
-    )
+)
     if bctype == 1 # bottom
         state⁺.ρ = 1
         state⁺.ρu = SVector(0, 0, 0)
@@ -398,7 +392,7 @@ function boundary_state!(
     bctype,
     t,
     _...,
-    )
+)
     if bctype == 1 # bottom
         state⁺.ρ = 1
         state⁺.ρu = SVector(0, 0, 0)
@@ -423,13 +417,13 @@ zmax = m.zmax;
 
 # Establish a `ClimateMachine` single stack configuration
 driver_config = ClimateMachine.SingleStackConfiguration(
-"BurgersEquation",
-N_poly,
-nelem_vert,
-zmax,
-param_set,
-m,
-numerical_flux_first_order = CentralNumericalFluxFirstOrder(),
+    "BurgersEquation",
+    N_poly,
+    nelem_vert,
+    zmax,
+    param_set,
+    m,
+    numerical_flux_first_order = CentralNumericalFluxFirstOrder(),
 );
 
 # # Time discretization
@@ -448,368 +442,282 @@ Fourier_bound = given_Fourier * Δ^2 / max(m.αh, m.μh, m.νd);
 Courant_bound = FT(0.5) * Δ;
 dt = min(Fourier_bound, Courant_bound)
 
+# # Configure a `ClimateMachine` solver.
 
+# This initializes the state vector and allocates memory for the solution in
+# space (`dg` has the model `m`, which describes the PDEs as well as the
+# function used for initialization). This additionally initializes the ODE
+# solver, by default an explicit Low-Storage
+# [Runge-Kutta](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods)
+# method.
 
-bl = driver_config.bl
-grid = driver_config.grid
-numerical_flux_first_order = driver_config.numerical_flux_first_order
-numerical_flux_second_order = driver_config.numerical_flux_second_order
-numerical_flux_gradient = driver_config.numerical_flux_gradient
+solver_config =
+    ClimateMachine.SolverConfiguration(t0, timeend, driver_config, ode_dt = dt);
 
-dg = DGModel(
-bl,
-grid,
-numerical_flux_first_order,
-numerical_flux_second_order,
-numerical_flux_gradient,
-diffusion_direction = EveryDirection(),
-)
-
-vdg = DGModel(
-bl,
-grid,
-numerical_flux_first_order,
-numerical_flux_second_order,
-numerical_flux_gradient,
-state_auxiliary = dg.state_auxiliary,
-direction = VerticalDirection(),
-)
-
-Q = init_ode_state(dg, FT(0))
-
-linearsolver = BatchedGeneralizedMinimalResidual(
-dg,
-Q;
-max_iteration = 30,
-atol = 1e-5,
-rtol = 1e-5,
-)
-
-nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
-Q,
-linearsolver;
-tol = 1e-4,
-)
-
-ode_solver = ARK548L2SA2KennedyCarpenter(
-dg,
-vdg,
-NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=false, lin_f_imp! = nothing),
-Q;
-dt = dt,
-t0 = 0,
-split_explicit_implicit = false,
-variant = NaiveVariant(),
-)
-
-
-eng0 = norm(Q)
-@info @sprintf """Starting
-norm(Q₀) = %.16e""" eng0
-
-# Set up the information callback
-starttime = Ref(now())
-cbinfo = EveryXWallTimeSeconds(60, mpicomm) do (s = false)
-    if s
-        starttime[] = now()
-    else
-        energy = norm(Q)
-        @info @sprintf(
-        """Update
-        simtime = %.16e
-        runtime = %s
-        norm(Q) = %.16e""",
-        gettime(ode_solver),
-        Dates.format(
-        convert(Dates.DateTime, Dates.now() - starttime[]),
-        Dates.dateformat"HH:MM:SS",
-        ),
-        energy
+    dg = solver_config.dg
+    Q = solver_config.Q
+    
+    vdg = DGModel(
+        driver_config.bl,
+        driver_config.grid,
+        driver_config.numerical_flux_first_order,
+        driver_config.numerical_flux_second_order,
+        driver_config.numerical_flux_gradient,
+        state_auxiliary = dg.state_auxiliary,
+        direction = VerticalDirection(),
         )
-    end
-end
-callbacks = (cbinfo,)
-# if ~isnothing(vtkdir)
-#     # create vtk dir
-#     mkpath(vtkdir)
+
     
-#     vtkstep = 0
-#     # output initial step
-#     do_output(
-#     mpicomm,
-#     vtkdir,
-#     vtkstep,
-#     dg,
-#     Q,
-#     Q,
-#     model,
-#     "advection_diffusion",
-#     )
     
-#     # setup the output callback
-#     cbvtk = EveryXSimulationSteps(floor(outputtime / dt)) do
-#         vtkstep += 1
-#         Qe = init_ode_state(dg, gettime(ode_solver))
-#         do_output(
-#         mpicomm,
-#         vtkdir,
-#         vtkstep,
-#         dg,
-#         Q,
-#         Qe,
-#         model,
-#         "advection_diffusion",
-#         )
-#     end
-#     callbacks = (callbacks..., cbvtk)
-# end
-
-numberofsteps = convert(Int64, cld(timeend, dt))
-dt = timeend / numberofsteps
-
-@info "time step" dt numberofsteps dt * numberofsteps timeend
-
-
-solve!( Q,
-ode_solver ;
-timeend = timeend,
-callbacks = callbacks,
-adjustfinalstep = false,
-)
-
-
-# # # Configure a `ClimateMachine` solver.
-
-# # This initializes the state vector and allocates memory for the solution in
-# # space (`dg` has the model `m`, which describes the PDEs as well as the
-# # function used for initialization). This additionally initializes the ODE
-# # solver, by default an explicit Low-Storage
-# # [Runge-Kutta](https://en.wikipedia.org/wiki/Runge%E2%80%93Kutta_methods)
-# # method.
-
-# solver_config =
-#     ClimateMachine.SolverConfiguration(t0, timeend, driver_config, ode_dt = dt);
-
-# # ## Inspect the initial conditions for a single nodal stack
-
-# # Let's export plots of the initial state
-# output_dir = @__DIR__;
-
-# mkpath(output_dir);
-
-# z_scale = 100 # convert from meters to cm
-# z_key = "z"
-# z_label = "z [cm]"
-# z = get_z(driver_config.grid, z_scale)
-# state_vars = get_vars_from_nodal_stack(
-#     driver_config.grid,
-#     solver_config.Q,
-#     vars_state(m, Prognostic(), FT),
-# );
-
-# # Create an array to store the solution:
-# state_data = Dict[state_vars]  # store initial condition at ``t=0``
-# time_data = FT[0]                                      # store time data
-
-# # Generate plots of initial conditions for the southwest nodal stack
-# export_plot(
-#     z,
-#     state_data,
-#     ("ρcT",),
-#     joinpath(output_dir, "initial_condition_T_nodal.png"),
-#     xlabel = "ρcT at southwest node",
-#     ylabel = z_label,
-#     time_data = time_data,
-# );
-# export_plot(
-#     z,
-#     state_data,
-#     ("ρu[1]",),
-#     joinpath(output_dir, "initial_condition_u_nodal.png"),
-#     xlabel = "ρu at southwest node",
-#     ylabel = z_label,
-#     time_data = time_data,
-# );
-# export_plot(
-#     z,
-#     state_data,
-#     ("ρu[2]",),
-#     joinpath(output_dir, "initial_condition_v_nodal.png"),
-#     xlabel = "ρv at southwest node",
-#     ylabel = z_label,
-#     time_data = time_data,
-# );
-
-# # ![](initial_condition_T_nodal.png)
-# # ![](initial_condition_u_nodal.png)
-
-# # ## Inspect the initial conditions for the horizontal averages
-
-# # Horizontal statistics of variables
-
-# state_vars_var = get_horizontal_variance(
-#     driver_config.grid,
-#     solver_config.Q,
-#     vars_state(m, Prognostic(), FT),
-# );
-
-# state_vars_avg = get_horizontal_mean(
-#     driver_config.grid,
-#     solver_config.Q,
-#     vars_state(m, Prognostic(), FT),
-# );
-
-# data_avg = Dict[state_vars_avg]
-# data_var = Dict[state_vars_var]
-
-# export_plot(
-#     z,
-#     data_avg,
-#     ("ρu[1]",),
-#     joinpath(output_dir, "initial_condition_avg_u.png");
-#     xlabel = "Horizontal mean of ρu",
-#     ylabel = z_label,
-#     time_data = time_data,
-# );
-# export_plot(
-#     z,
-#     data_var,
-#     ("ρu[1]",),
-#     joinpath(output_dir, "initial_condition_variance_u.png"),
-#     xlabel = "Horizontal variance of ρu",
-#     ylabel = z_label,
-#     time_data = time_data,
-# );
-
-# # ![](initial_condition_avg_u.png)
-# # ![](initial_condition_variance_u.png)
-
-# # # Solver hooks / callbacks
-
-# # Define the number of outputs from `t0` to `timeend`
-# const n_outputs = 5;
-# const every_x_simulation_time = timeend / n_outputs;
-
-# # Create a dictionary for `z` coordinate (and convert to cm) NCDatasets IO:
-# dims = OrderedDict(z_key => collect(z));
-
-# # Create dictionaries to store outputs:
-# data_var = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
-# data_var[1] = state_vars_var
-
-# data_avg = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
-# data_avg[1] = state_vars_avg
-
-# data_nodal = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
-# data_nodal[1] = state_vars
-
-# # The `ClimateMachine`'s time-steppers provide hooks, or callbacks, which
-# # allow users to inject code to be executed at specified intervals. In this
-# # callback, the state variables are collected, combined into a single
-# # `OrderedDict` and written to a NetCDF file (for each output step `step`).
-# step = [0];
-# callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
-    #     state_vars_var = get_horizontal_variance(
-    #         driver_config.grid,
-    #         solver_config.Q,
-    #         vars_state(m, Prognostic(), FT),
-    #     )
-    #     state_vars_avg = get_horizontal_mean(
-    #         driver_config.grid,
-    #         solver_config.Q,
-    #         vars_state(m, Prognostic(), FT),
-    #     )
-    #     state_vars = get_vars_from_nodal_stack(
-    #         driver_config.grid,
-    #         solver_config.Q,
-    #         vars_state(m, Prognostic(), FT),
-    #         i = 1,
-    #         j = 1,
-    #     )
-    #     step[1] += 1
-    #     push!(data_var, state_vars_var)
-    #     push!(data_avg, state_vars_avg)
-    #     push!(data_nodal, state_vars)
-    #     push!(time_data, gettime(solver_config.solver))
-    #     nothing
-    # end;
+    linearsolver = BatchedGeneralizedMinimalResidual(
+        dg,
+        Q;
+        max_iteration = 30,
+        atol = 1e-5,
+        rtol = 1e-5,
+        )
     
-    # # # Solve
+    nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
+        Q,
+        linearsolver;
+        tol = 1e-4,
+        )
     
-    # # This is the main `ClimateMachine` solver invocation. While users do not have
-    # # access to the time-stepping loop, code may be injected via `user_callbacks`,
-    # # which is a `Tuple` of [`GenericCallbacks`](@ref ClimateMachine.GenericCallbacks).
-    # ClimateMachine.invoke!(solver_config; user_callbacks = (callback,))
-    
-    # # # Post-processing
-    
-    # # Our solution has now been calculated and exported to NetCDF files in
-    # # `output_dir`.
-    
-    # # Let's plot the horizontal statistics of `ρu` and `ρcT`, as well as the evolution of
-    # # `ρu` for the southwest nodal stack:
-    # export_plot(
-    #     z,
-    #     data_avg,
-    #     ("ρu[1]"),
-    #     joinpath(output_dir, "solution_vs_time_u_avg.png"),
-    #     xlabel = "Horizontal mean of ρu",
-    #     ylabel = z_label,
-    #     time_data = time_data,
-    # );
-    # export_plot(
-    #     z,
-    #     data_var,
-    #     ("ρu[1]"),
-    #     joinpath(output_dir, "variance_vs_time_u.png"),
-    #     xlabel = "Horizontal variance of ρu",
-    #     ylabel = z_label,
-    #     time_data = time_data,
-    # );
-    # export_plot(
-    #     z,
-    #     data_avg,
-    #     ("ρcT"),
-    #     joinpath(output_dir, "solution_vs_time_T_avg.png"),
-    #     xlabel = "Horizontal mean of ρcT",
-    #     ylabel = z_label,
-    #     time_data = time_data,
-    # );
-    # export_plot(
-    #     z,
-    #     data_var,
-    #     ("ρcT"),
-    #     joinpath(output_dir, "variance_vs_time_T.png"),
-    #     xlabel = "Horizontal variance of ρcT",
-    #     ylabel = z_label,
-    #     time_data = time_data,
-    # );
-    # export_plot(
-    #     z,
-    #     data_nodal,
-    #     ("ρu[1]"),
-    #     joinpath(output_dir, "solution_vs_time_u_nodal.png"),
-    #     xlabel = "ρu at southwest node",
-    #     ylabel = z_label,
-    #     time_data = time_data,
-    # );
-    # # ![](solution_vs_time_u_avg.png)
-    # # ![](variance_vs_time_u.png)
-    # # ![](solution_vs_time_T_avg.png)
-    # # ![](variance_vs_time_T.png)
-    # # ![](solution_vs_time_u_nodal.png)
-    
-    # # Rayleigh friction returns the horizontal velocity to the objective
-    # # profile on the timescale of the simulation (1 second), since `γ`∼1. The horizontal viscosity
-    # # and 2D divergence damping act to reduce the horizontal variance over the same timescale.
-    # # The initial Gaussian noise is propagated to the temperature field through advection.
-    # # The horizontal diffusivity acts to reduce this `ρcT` variance in time, although in a longer
-    # # timescale.
-    
-    # # To run this file, and
-    # # inspect the solution, include this tutorial in the Julia REPL
-    # # with:
-    
-    # # ```julia
-    # # include(joinpath("tutorials", "Atmos", "burgers_single_stack.jl"))
-    # # ```
+    ode_solver = ARK548L2SA2KennedyCarpenter(
+        dg,
+        vdg,
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=false, lin_f_imp! = nothing),
+        Q;
+        dt = dt,
+        t0 = 0,
+        split_explicit_implicit = false,
+        variant = NaiveVariant(),
+    )
+
+    solver_config.solver = ode_solver 
+
+
+
+# ## Inspect the initial conditions for a single nodal stack
+
+# Let's export plots of the initial state
+output_dir = @__DIR__;
+
+mkpath(output_dir);
+
+z_scale = 100 # convert from meters to cm
+z_key = "z"
+z_label = "z [cm]"
+z = get_z(driver_config.grid, z_scale)
+state_vars = get_vars_from_nodal_stack(
+    driver_config.grid,
+    solver_config.Q,
+    vars_state(m, Prognostic(), FT),
+);
+
+# Create an array to store the solution:
+state_data = Dict[state_vars]  # store initial condition at ``t=0``
+time_data = FT[0]                                      # store time data
+
+# Generate plots of initial conditions for the southwest nodal stack
+export_plot(
+    z,
+    state_data,
+    ("ρcT",),
+    joinpath(output_dir, "initial_condition_T_nodal.png"),
+    xlabel = "ρcT at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    state_data,
+    ("ρu[1]",),
+    joinpath(output_dir, "initial_condition_u_nodal.png"),
+    xlabel = "ρu at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    state_data,
+    ("ρu[2]",),
+    joinpath(output_dir, "initial_condition_v_nodal.png"),
+    xlabel = "ρv at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
+);
+
+# ![](initial_condition_T_nodal.png)
+# ![](initial_condition_u_nodal.png)
+
+# ## Inspect the initial conditions for the horizontal averages
+
+# Horizontal statistics of variables
+
+state_vars_var = get_horizontal_variance(
+    driver_config.grid,
+    solver_config.Q,
+    vars_state(m, Prognostic(), FT),
+);
+
+state_vars_avg = get_horizontal_mean(
+    driver_config.grid,
+    solver_config.Q,
+    vars_state(m, Prognostic(), FT),
+);
+
+data_avg = Dict[state_vars_avg]
+data_var = Dict[state_vars_var]
+
+export_plot(
+    z,
+    data_avg,
+    ("ρu[1]",),
+    joinpath(output_dir, "initial_condition_avg_u.png");
+    xlabel = "Horizontal mean of ρu",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    data_var,
+    ("ρu[1]",),
+    joinpath(output_dir, "initial_condition_variance_u.png"),
+    xlabel = "Horizontal variance of ρu",
+    ylabel = z_label,
+    time_data = time_data,
+);
+
+# ![](initial_condition_avg_u.png)
+# ![](initial_condition_variance_u.png)
+
+# # Solver hooks / callbacks
+
+# Define the number of outputs from `t0` to `timeend`
+const n_outputs = 5;
+const every_x_simulation_time = timeend / n_outputs;
+
+# Create a dictionary for `z` coordinate (and convert to cm) NCDatasets IO:
+dims = OrderedDict(z_key => collect(z));
+
+# Create dictionaries to store outputs:
+data_var = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
+data_var[1] = state_vars_var
+
+data_avg = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
+data_avg[1] = state_vars_avg
+
+data_nodal = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
+data_nodal[1] = state_vars
+
+# The `ClimateMachine`'s time-steppers provide hooks, or callbacks, which
+# allow users to inject code to be executed at specified intervals. In this
+# callback, the state variables are collected, combined into a single
+# `OrderedDict` and written to a NetCDF file (for each output step `step`).
+step = [0];
+callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
+    state_vars_var = get_horizontal_variance(
+        driver_config.grid,
+        solver_config.Q,
+        vars_state(m, Prognostic(), FT),
+    )
+    state_vars_avg = get_horizontal_mean(
+        driver_config.grid,
+        solver_config.Q,
+        vars_state(m, Prognostic(), FT),
+    )
+    state_vars = get_vars_from_nodal_stack(
+        driver_config.grid,
+        solver_config.Q,
+        vars_state(m, Prognostic(), FT),
+        i = 1,
+        j = 1,
+    )
+    step[1] += 1
+    push!(data_var, state_vars_var)
+    push!(data_avg, state_vars_avg)
+    push!(data_nodal, state_vars)
+    push!(time_data, gettime(solver_config.solver))
+    nothing
+end;
+
+# # Solve
+
+# This is the main `ClimateMachine` solver invocation. While users do not have
+# access to the time-stepping loop, code may be injected via `user_callbacks`,
+# which is a `Tuple` of [`GenericCallbacks`](@ref ClimateMachine.GenericCallbacks).
+ClimateMachine.invoke!(solver_config; user_callbacks = (callback,))
+
+# # Post-processing
+
+# Our solution has now been calculated and exported to NetCDF files in
+# `output_dir`.
+
+# Let's plot the horizontal statistics of `ρu` and `ρcT`, as well as the evolution of
+# `ρu` for the southwest nodal stack:
+export_plot(
+    z,
+    data_avg,
+    ("ρu[1]"),
+    joinpath(output_dir, "solution_vs_time_u_avg.png"),
+    xlabel = "Horizontal mean of ρu",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    data_var,
+    ("ρu[1]"),
+    joinpath(output_dir, "variance_vs_time_u.png"),
+    xlabel = "Horizontal variance of ρu",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    data_avg,
+    ("ρcT"),
+    joinpath(output_dir, "solution_vs_time_T_avg.png"),
+    xlabel = "Horizontal mean of ρcT",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    data_var,
+    ("ρcT"),
+    joinpath(output_dir, "variance_vs_time_T.png"),
+    xlabel = "Horizontal variance of ρcT",
+    ylabel = z_label,
+    time_data = time_data,
+);
+export_plot(
+    z,
+    data_nodal,
+    ("ρu[1]"),
+    joinpath(output_dir, "solution_vs_time_u_nodal.png"),
+    xlabel = "ρu at southwest node",
+    ylabel = z_label,
+    time_data = time_data,
+);
+# ![](solution_vs_time_u_avg.png)
+# ![](variance_vs_time_u.png)
+# ![](solution_vs_time_T_avg.png)
+# ![](variance_vs_time_T.png)
+# ![](solution_vs_time_u_nodal.png)
+
+# Rayleigh friction returns the horizontal velocity to the objective
+# profile on the timescale of the simulation (1 second), since `γ`∼1. The horizontal viscosity
+# and 2D divergence damping act to reduce the horizontal variance over the same timescale.
+# The initial Gaussian noise is propagated to the temperature field through advection.
+# The horizontal diffusivity acts to reduce this `ρcT` variance in time, although in a longer
+# timescale.
+
+# To run this file, and
+# inspect the solution, include this tutorial in the Julia REPL
+# with:
+
+# ```julia
+# include(joinpath("tutorials", "Atmos", "burgers_single_stack.jl"))
+# ```
