@@ -99,8 +99,8 @@ function compute_buoyancy_gradients(
     return ∂b∂z, Nˢ_eff
 end;
 
-function gradient_Richardson_number(∂b∂z::FT, Shear::FT, maxval::FT) where {FT}
-    return min(∂b∂z / max(Shear, FT(1e-6)), maxval)
+function gradient_Richardson_number(∂b∂z::FT, Shear²::FT, maxval::FT) where {FT}
+    return min(∂b∂z / max(Shear², FT(1e-6)), maxval)
 end;
 
 function turbulent_Prandtl_number(Pr_n::FT, Grad_Ri::FT) where {FT}

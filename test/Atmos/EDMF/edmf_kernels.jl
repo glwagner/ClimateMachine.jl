@@ -266,7 +266,6 @@ end
 
 function vars_state(m::EDMF, st::Gradient, FT)
     @vars(
-        u::SVector{3, FT}, # should be conditionally grabbed from atmos.turbulence
         environment::vars_state(m.environment, st, FT),
         updraft::vars_state(m.updraft, st, FT)
     )
@@ -298,7 +297,7 @@ end
 
 function vars_state(m::EDMF, st::GradientFlux, FT)
     @vars(
-        ∇u::SMatrix{3, 3, FT, 9}, # should be conditionally grabbed from atmos.turbulence
+        S²::FT, # should be conditionally grabbed from atmos.turbulence
         environment::vars_state(m.environment, st, FT),
         updraft::vars_state(m.updraft, st, FT)
     )
@@ -522,9 +521,6 @@ function compute_gradient_argument!(
     en_θ_liq = liquid_ice_pottemp(ts_en)
     en_q_tot = total_specific_humidity(ts_en)
 
-    tc_t = transform.turbconv
-    tc_t.u = gm.ρu * ρinv
-
     # populate gradient arguments
     # en_t.θ_liq = en_θ_liq
     en_t.q_tot = en_q_tot
@@ -583,7 +579,7 @@ function compute_gradient_flux!(
     en_d.∇θv = en_∇t.θv
     en_d.∇e = en_∇t.e
 
-    tc_d.∇u = tc_∇t.u
+    tc_d.S² = ∇transform.u[3, 1]^2 + ∇transform.u[3, 2]^2 + en_d.∇w[3]^2
 end;
 
 # We have no sources, nor non-diffusive fluxes.
@@ -747,16 +743,15 @@ function turbconv_source!(
     # l_mix    = mixing_length(m, m.turbconv.mix_len, state, diffusive, aux, t, δ_dyn, ε_trb)
     l_mix = FT(500)
     K_eddy = m.turbconv.mix_len.c_m * l_mix * sqrt(tke_env)
-    gm_d_∇u = diffusive.turbconv.∇u
-    Shear = gm_d_∇u[1, 3]^2 + gm_d_∇u[2, 3]^2 + en_d.∇w[3]^2 # consider scalar product of two vectors
+    Shear² = diffusive.turbconv.S²
 
-    # # # second moment production from mean gradients (+ sign here as we have + S in BL form)
-    # #                            # production from mean gradient           - Dissipation
+    # second moment production from mean gradients (+ sign here as we have + S in BL form)
+    # production from mean gradient           - Dissipation
     en_s.ρatke +=
         gm.ρ *
         en_a *
         (
-            K_eddy * Shear -
+            K_eddy * Shear² -
             m.turbconv.mix_len.c_d * sqrt(tke_env) / l_mix * tke_env
         )
     en_s.ρaθ_liq_cv +=
@@ -999,10 +994,6 @@ function turbconv_normal_boundary_flux_second_order!(
 
     turbconv = m.turbconv
     N = n_updrafts(turbconv)
-    # up = state⁺.turbconv.updraft
-    # en = state⁺.turbconv.environment
-    # up_d = diff⁺.turbconv.updraft
-    # en_d = diff⁺.turbconv.environment
     up_f = fluxᵀn.turbconv.updraft
     en_f = fluxᵀn.turbconv.environment
     if bctype == 2 # top

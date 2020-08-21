@@ -33,7 +33,7 @@ function mixing_length(
 
     gm_d_∇u = diffusive.turbconv.∇u
     # TODO: check rank of `en_d.∇u`
-    Shear = gm_d_∇u[1, 3]^2 + gm_d_∇u[2, 3]^2 + en_d.∇w[3]^2 # consider scalar product of two vectors
+    Shear² = diffusive.turbconv.S²
     tke = max(en.ρatke, 0) * ρinv / en_area
 
     # bflux     = Nishizawa2018.compute_buoyancy_flux(m.param_set, ml.shf, ml.lhf, ml.T_b, q, ρinv)
@@ -46,7 +46,7 @@ function mixing_length(
 
     # buoyancy related functions
     ∂b∂z, Nˢ_eff = compute_buoyancy_gradients(m, state, diffusive, aux, t)
-    Grad_Ri = gradient_Richardson_number(∂b∂z, Shear, FT(0.25)) # this parameter should be exposed in the model
+    Grad_Ri = gradient_Richardson_number(∂b∂z, Shear², FT(0.25)) # this parameter should be exposed in the model
     Pr_z = turbulent_Prandtl_number(FT(1), Grad_Ri)
 
     # compute L1
@@ -70,7 +70,7 @@ function mixing_length(
 
     # compute L3 - entrainment detrainment sources
     # Production/destruction terms
-    a = ml.c_m * (Shear - ∂b∂z / Pr_z) * sqrt(tke)
+    a = ml.c_m * (Shear² - ∂b∂z / Pr_z) * sqrt(tke)
     # Dissipation term
     b = FT(0)
     ntuple(N_up) do i
