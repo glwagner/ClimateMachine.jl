@@ -440,7 +440,7 @@ timeend = FT(1);
 given_Fourier = FT(0.5);
 Fourier_bound = given_Fourier * Δ^2 / max(m.αh, m.μh, m.νd);
 Courant_bound = FT(0.5) * Δ;
-dt = min(Fourier_bound, Courant_bound)
+dt = 10*min(Fourier_bound, Courant_bound)
 
 # # Configure a `ClimateMachine` solver.
 

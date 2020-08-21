@@ -64,6 +64,7 @@ using ClimateMachine.Diagnostics
 using ClimateMachine.GenericCallbacks
 using ClimateMachine.Mesh.Filters
 using ClimateMachine.Mesh.Grids
+using ClimateMachine.SystemSolvers
 using ClimateMachine.ODESolvers
 using ClimateMachine.SingleStackUtils
 using ClimateMachine.Thermodynamics
@@ -519,7 +520,7 @@ function main()
     # For the test we set this to == 30 minutes
     timeend = FT(1800)
     #timeend = FT(3600 * 6)
-    CFLmax = FT(10.0)
+    CFLmax = FT(1.0)
 
     driver_config = config_bomex(FT, N, nelem_vert, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
@@ -564,6 +565,7 @@ function main()
         vdg,
         NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true),
         Q;
+        dt = solver_config.dt, 
         t0 = 0,
         split_explicit_implicit = false,
         variant = NaiveVariant(),
