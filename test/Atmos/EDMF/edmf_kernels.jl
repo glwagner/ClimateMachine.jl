@@ -368,7 +368,9 @@ function init_state_prognostic!(
     end
 
     # initialize environment covariance with zero for now
-    en.ρatke = FT(1e-3) / max(z, FT(10))
+    if (z<=2500.0)
+        en.ρatke = gm.ρ*(FT(1) - z/FT(3000))
+    end
     en.ρaθ_liq_cv = FT(1e-5) / max(z, FT(10))
     en.ρaq_tot_cv = FT(1e-5) / max(z, FT(10))
     en.ρaθ_liq_q_tot_cv = FT(1e-7) / max(z, FT(10))

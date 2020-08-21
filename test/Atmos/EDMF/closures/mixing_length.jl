@@ -31,7 +31,6 @@ function mixing_length(
     en_area = environment_area(state, aux, N_up)
     w_env = environment_w(state, aux, N_up)
 
-    gm_d_∇u = diffusive.turbconv.∇u
     # TODO: check rank of `en_d.∇u`
     Shear² = diffusive.turbconv.S²
     tke = max(en.ρatke, 0) * ρinv / en_area
@@ -58,8 +57,13 @@ function mixing_length(
 
     # compute L2 - law of the wall  - YAIR define tke_surf
     # tke_surf = FT(3.75)*ustar*ustar
-    θ_liq_cv_surf, q_tot_cv_surf, θ_liq_q_tot_cv_surf, tke_surf =
-        env_surface_covariances(m.turbconv.surface, m.turbconv, m, gm, gm_a)
+    _,_,_,_,_,_,tke_surf =
+    subdomain_surface_values(m.turbconv.surface,
+                                     m.turbconv,
+                                     m,
+                                     gm,
+                                     gm_a,
+                                     FT(60))
     if obukhov_length < FT(0)
         L_2 =
             (ml.κ * z / (sqrt(tke_surf) / ustar / ustar) * ml.c_m) *
@@ -83,7 +87,8 @@ function mixing_length(
     end
 
     c_neg = ml.c_d * tke * sqrt(abs(tke))
-    if abs(a) > eps(FT) && 4 * a * c_neg > -b^2
+
+    if abs(a) > FT(1e-9) && 4 * a * c_neg > -b^2
         l_entdet =
             max(-b / FT(2) / a + sqrt(b^2 + 4 * a * c_neg) / 2 / a, FT(0))
     elseif abs(a) < eps(FT) && abs(b) > eps(FT)
