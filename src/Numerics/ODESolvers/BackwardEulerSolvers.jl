@@ -147,7 +147,7 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         FT = eltype(α)
         # TODO what is the single_column
         single_column = false
-        lin.factors = preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        lin.factors = construct_preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
     end
     linearsolve!(rhs!, lin.factors, lin.solver, Q, Qhat, p, t)
 end
@@ -159,11 +159,9 @@ struct NonLinearBackwardEulerSolver{NLS}
     isadjustable::Bool
     # preconditioner
     preconditioner::Bool
-    # linearized operator, does not have α information
-    lin_f_imp!
-    function NonLinearBackwardEulerSolver(nlsolver; isadjustable = false, preconditioner = false, lin_f_imp! = nothing)
+    function NonLinearBackwardEulerSolver(nlsolver; isadjustable = false, preconditioner = false)
         NLS = typeof(nlsolver)
-        return new{NLS}(nlsolver, isadjustable, preconditioner, lin_f_imp!)
+        return new{NLS}(nlsolver, isadjustable, preconditioner)
     end
 end
 
@@ -174,8 +172,6 @@ mutable struct NonLinBESolver{FT, F, NLS} <: AbstractBackwardEulerSolver
     isadjustable::Bool
     # preconditioner
     preconditioner::Bool
-    # linearized operator, does not have α information
-    lin_f_imp!
     # preconditioner factors, has α information
     factors
     
@@ -196,7 +192,6 @@ function setup_backward_Euler_solver(
         nlsolver.nlsolver,
         nlsolver.isadjustable,
         nlsolver.preconditioner, 
-        nlsolver.lin_f_imp!,
         nothing
     )
 end
@@ -213,30 +208,13 @@ end
 
 function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
 
-    # if nlbesolver.α != α
-
-    #     @info "nlbesolver.α != α"
-    #     @assert nlbesolver.isadjustable
-    #     update_backward_Euler_solver!(nlbesolver, Q, α)
-    # end
 
     rhs! = EulerOperator(nlbesolver.f_imp!, -α)
-
-    linrhs! = nlbesolver.preconditioner ? EulerOperator(nlbesolver.lin_f_imp!, -α) : nothing
-    # rhs! = nlbesolver.f_imp!
-
-    # if  nlbesolver.preconditioner
-    #     # update the preconditioner, lin.factors
-    #     FT = eltype(α)
-    #     # TODO what is the single_column
-    #     single_column = false
-    #     nlbesolver.factors = preconditioner(EulerOperator(nlbesolver.lin_f_imp!, -α), single_column, Q, nothing, FT(NaN), )
-    # end
 
     # Call "solve" function in SystemSolvers
     nonlinearsolve!(
         rhs!,
-        linrhs!,
+        nlbesolver.preconditioner,
         nlbesolver.nlsolver,
         Q,
         Qhat,

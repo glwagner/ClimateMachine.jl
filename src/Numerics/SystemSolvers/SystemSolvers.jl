@@ -99,7 +99,7 @@ where `F = N(Q) - Qrhs`, N(Q) is
 """
 function nonlinearsolve!(
     rhs!,
-    linrhs!,
+    preconditioner::Bool,
     solver::AbstractNonlinearSolver,
     Q::AT,
     Qrhs,
@@ -141,13 +141,13 @@ function nonlinearsolve!(
     while !converged && iters < max_newton_iters
 
         # factors is the approximation of the Jacobian dF(Q)
-        #if !isnothing(jvp!)
+        if preconditioner
             # update the preconditioner, factors
             FT = eltype(Q)
             # TODO what is the single_column
             single_column = false
-            factors = preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
-        #end
+            factors = construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        end
         
 
         residual_norm, linear_iterations =

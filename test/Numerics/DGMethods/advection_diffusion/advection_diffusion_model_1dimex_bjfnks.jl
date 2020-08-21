@@ -200,7 +200,7 @@ function run(
     ode_solver = ARK548L2SA2KennedyCarpenter(
         dg,
         vdg,
-        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true, lin_f_imp! = linvdg),
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true),
         Q;
         dt = dt,
         t0 = 0,
