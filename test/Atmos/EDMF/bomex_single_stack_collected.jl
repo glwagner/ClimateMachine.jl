@@ -519,7 +519,7 @@ function main()
     # For the test we set this to == 30 minutes
     timeend = FT(1800)
     #timeend = FT(3600 * 6)
-    CFLmax = FT(0.90)
+    CFLmax = FT(10.0)
 
     driver_config = config_bomex(FT, N, nelem_vert, zmax)
     solver_config = ClimateMachine.SolverConfiguration(
@@ -531,6 +531,46 @@ function main()
         CFL_direction = VerticalDirection(),
     )
     dgn_config = config_diagnostics(driver_config)
+
+    dg = solver_config.dg
+    Q = solver_config.Q
+
+    vdg = DGModel(
+        driver_config.bl,
+        driver_config.grid,
+        driver_config.numerical_flux_first_order,
+        driver_config.numerical_flux_second_order,
+        driver_config.numerical_flux_gradient,
+        state_auxiliary = dg.state_auxiliary,
+        direction = VerticalDirection(),
+        )
+
+    linearsolver = BatchedGeneralizedMinimalResidual(
+        dg,
+        Q;
+        max_iteration = 30,
+        atol = 1e-5,
+        rtol = 1e-5,
+        )
+
+    nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
+        Q,
+        linearsolver;
+        tol = 1e-4,
+        )
+
+    ode_solver = ARK548L2SA2KennedyCarpenter(
+        dg,
+        vdg,
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true),
+        Q;
+        t0 = 0,
+        split_explicit_implicit = false,
+        variant = NaiveVariant(),
+    )
+
+    solver_config.solver = ode_solver
+
 
 
     output_dir = ClimateMachine.Settings.output_dir
