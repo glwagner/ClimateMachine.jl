@@ -526,6 +526,7 @@ function main()
     IMPLICIT = true
     # CFL_direction = (IMPLICIT ? HorizontalDirection() : VerticalDirection())
     CFL_direction = VerticalDirection()
+    preconditioner = false
     ###########################
 
 
@@ -559,8 +560,8 @@ function main()
             dg,
             Q;
             max_iteration = 30,
-            atol = 1e-5,
-            rtol = 1e-5,
+            atol = 1e-6,
+            rtol = 1e-6,
         )
         
         nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
@@ -572,7 +573,7 @@ function main()
         ode_solver = ARK548L2SA2KennedyCarpenter(
             dg,
             vdg,
-            NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=false),
+            NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=preconditioner),
             Q;
             dt = solver_config.dt, 
             t0 = 0,
