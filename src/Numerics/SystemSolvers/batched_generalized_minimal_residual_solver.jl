@@ -55,7 +55,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
     OmT,
     HT,
     gT,
-    yT,
     sT,
     resT,
     res0T,
@@ -73,8 +72,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
     H::HT
     "rhs of the least squares problem in each column"
     g0::gT
-    "solution of the least squares problem in each column"
-    y::yT
     "The GMRES iterate in each batched column"
     sol::sT
     rtol::T
@@ -125,7 +122,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
         Ω = ArrayType(zeros(eltype(AT), Nbatch, 2 * M))
         H = ArrayType(zeros(eltype(AT), Nbatch, M + 1, M))
         g0 = ArrayType(zeros(eltype(AT), Nbatch, M + 1))
-        y = ArrayType(zeros(eltype(AT), Nbatch, M + 1))
 
         sol = ArrayType(zeros(eltype(AT), dofperbatch, Nbatch))
         resnorms = ArrayType(zeros(eltype(AT), Nbatch))
@@ -147,7 +143,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
         OmT = typeof(Ω)
         HT = typeof(H)
         gT = typeof(g0)
-        yT = typeof(y)
         sT = typeof(sol)
         resT = typeof(resnorms)
         res0T = typeof(resnorms0)
@@ -166,7 +161,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
             OmT,
             HT,
             gT,
-            yT,
             sT,
             resT,
             res0T,
@@ -177,7 +171,6 @@ mutable struct BatchedGeneralizedMinimalResidual{
             Ω,
             H,
             g0,
-            y,
             sol,
             rtol,
             atol,
@@ -277,7 +270,8 @@ function BatchedGeneralizedMinimalResidual(
     # permute [ni, nj, nk, num_states, nvertelem, nhorzelem] 
     # to      [nvertelem, nk, num_states, ni, nj, nhorzelem]
     permute_size = length(reshaping_tup)
-    permute_tuple_f = (dim + 2, dim, dim + 1, (1:(dim - 1))..., permute_size)
+    # permute_tuple_f = (dim + 2, dim, dim + 1, (1:(dim - 1))..., permute_size)
+    permute_tuple_f = (dim + 1, dim, dim + 2, (1:(dim - 1))..., permute_size)
 
     return BatchedGeneralizedMinimalResidual(
         Q,
@@ -353,7 +347,7 @@ function initialize!(
     if !restart
         resnorms0 .= resnorms
     end
-
+    # @info " initialize "
     converged, residual_norm =
         batched_check_convergence(resnorms, resnorms0, atol, rtol)
     converged, residual_norm
@@ -372,7 +366,6 @@ function doiteration!(
     krylov_basis_prev = solver.krylov_basis_prev
     Hs = solver.H
     g0s = solver.g0
-    ys = solver.y
     Ωs = solver.Ω
     sols = solver.sol
     batched_krylov_basis = solver.batched_krylov_basis
@@ -439,8 +432,12 @@ function doiteration!(
         # Current stopping criteria is based on the maximal column norm
         # TODO: Once we are able to batch the operator application, we
         # should revisit the termination criteria.
+
+        # @info " do iteration ", j
         converged, residual_norm =
             batched_check_convergence(resnorms, resnorms0, atol, rtol)
+        
+        
         if converged
             break
         end
@@ -461,7 +458,6 @@ function doiteration!(
         batched_krylov_basis,
         Hs,
         g0s,
-        ys,
         sols,
         j;
         ndrange = solver.batch_size,
@@ -593,7 +589,6 @@ end
     batched_krylov_basis,
     Hs,
     g0s,
-    ys,
     sols,
     j,
 )
@@ -654,5 +649,7 @@ function batched_check_convergence(resnorms, resnorms0, atol, rtol)
     residual_norm0 = maximum(resnorms0)
     threshold = residual_norm0 * rtol
     converged = (residual_norm < threshold)
+
+    # @show "check convergence : ", converged, residual_norm, residual_norm0
     return converged, residual_norm
 end

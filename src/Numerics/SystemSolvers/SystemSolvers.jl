@@ -27,7 +27,7 @@ LinearAlgebra.norm(A::AbstractVector, p::Real, weighted::Bool) = norm(A, p)
 LinearAlgebra.norm(A::AbstractVector, weighted::Bool) = norm(A, 2, weighted)
 LinearAlgebra.dot(A::AbstractVector, B::AbstractVector, weighted) = dot(A, B)
 
-export linearsolve!, settolerance!, prefactorize, preconditioner, preconditioner_solve!
+export linearsolve!, settolerance!, prefactorize, construct_preconditioner, preconditioner_solve!
 export AbstractSystemSolver, AbstractIterativeSystemSolver
 export nonlinearsolve!
 

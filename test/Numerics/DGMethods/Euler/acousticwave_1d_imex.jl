@@ -54,9 +54,9 @@ function main()
 
     mpicomm = MPI.COMM_WORLD
 
-    polynomialorder = 2
-    numelem_horz = 2
-    numelem_vert = 2
+    polynomialorder = 5
+    numelem_horz = 10
+    numelem_vert = 5
 
     timeend = 1 * 60
     # timeend = 33 * 60 * 60 # Full simulation
@@ -182,7 +182,7 @@ function run(
     odesolver = ARK2GiraldoKellyConstantinescu(
         split_explicit_implicit ? rem_dg : dg,
         lineardg,
-        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = true),
+        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = false),
         Q;
         dt = dt,
         t0 = 0,
