@@ -320,14 +320,14 @@ function initialize!(
     krylov_basis .= Qrhs .- krylov_basis
 
     # Convert into a batched Krylov basis vector
-    tmp_array = similar(batched_krylov_basis[1, :, :])
+    # tmp_array = similar(batched_krylov_basis[1, :, :])
     convert_structure!(
-        tmp_array,
+        view(batched_krylov_basis, 1, :, :),
         krylov_basis,
         forward_reshape,
         forward_permute,
     )
-    batched_krylov_basis[1, :, :] .= tmp_array
+    # batched_krylov_basis[1, :, :] .= tmp_array
 
     # Now we initialize across all columns (solver.batch_size).
     # This function also computes the residual norm in each column

@@ -57,38 +57,38 @@ function donewtoniteration!(implicitoperator!, linearoperator!, factors, Q, Qrhs
     )
 end
 
-function apply_jacobian!(
-    JΔQ,
-    rhs!,
-    Q,
-    dQ,
-    ϵ,
-    args...,
-)   
-    FT = eltype(Q)
-    n = length(dQ)
-    normdQ = norm(dQ, weighted_norm)
+# function apply_jacobian!(
+#     JΔQ,
+#     rhs!,
+#     Q,
+#     dQ,
+#     ϵ,
+#     args...,
+# )   
+#     FT = eltype(Q)
+#     n = length(dQ)
+#     normdQ = norm(dQ, weighted_norm)
 
-    if normdQ > ϵ
-        factor = FT(1 / (n*normdQ))
-    else
-        # initial newton step, ΔQ = 0
-        factor = FT(1 / n)
-    end
+#     if normdQ > ϵ
+#         factor = FT(1 / (n*normdQ))
+#     else
+#         # initial newton step, ΔQ = 0
+#         factor = FT(1 / n)
+#     end
 
-    β = √ϵ
-    e = factor * β * sum(abs.(Q)) + β
+#     β = √ϵ
+#     e = factor * β * sum(abs.(Q)) + β
 
-    Fq = similar(Q)
-    Fqdq = similar(Q)
-    # rhs!(Fq, Q, args..., increment = false)
-    # rhs!(Fqdq, Q .+ e .* dQ, args..., increment = false)
+#     Fq = similar(Q)
+#     Fqdq = similar(Q)
+#     # rhs!(Fq, Q, args..., increment = false)
+#     # rhs!(Fqdq, Q .+ e .* dQ, args..., increment = false)
 
-    rhs!(Fq, Q, args...)
-    rhs!(Fqdq, Q .+ e .* dQ, args...)
+#     rhs!(Fq, Q, args...)
+#     rhs!(Fqdq, Q .+ e .* dQ, args...)
 
-    JΔQ .= (Fqdq .- Fq) ./ e
-end
+#     JΔQ .= (Fqdq .- Fq) ./ e
+# end
 
 """
 
@@ -100,6 +100,7 @@ where `F = N(Q) - Qrhs`, N(Q) is
 """
 function nonlinearsolve!(
     rhs!,
+    jvp!,
     preconditioner::Bool,
     solver::AbstractNonlinearSolver,
     Q::AT,
@@ -130,17 +131,17 @@ function nonlinearsolve!(
     """
 
     # Create Jacobian action here, since Q is updated in the loop
-    jvp! = (JΔQ, ΔQ, args...) -> apply_jacobian!(JΔQ, 
-        rhs!,
-        Q,
-        ΔQ,
-        solver.ϵ,
-        args...,
-    )
+    # jvp! = (JΔQ, ΔQ, args...) -> apply_jacobian!(JΔQ, 
+    #     rhs!,
+    #     Q,
+    #     ΔQ,
+    #     solver.ϵ,
+    #     args...,
+    # )
     factors = nothing
 
     while !converged && iters < max_newton_iters
-
+        update_Q!(jvp!, Q, args...)
         # factors is the approximation of the Jacobian dF(Q)
         if preconditioner
             # update the preconditioner, factors

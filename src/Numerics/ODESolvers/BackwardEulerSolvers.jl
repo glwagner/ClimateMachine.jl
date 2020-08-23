@@ -168,6 +168,7 @@ end
 mutable struct NonLinBESolver{FT, F, NLS} <: AbstractBackwardEulerSolver
     α::FT
     f_imp!::F
+    jvp!::JacobianAction
     nlsolver::NLS
     isadjustable::Bool
     # preconditioner
@@ -186,9 +187,11 @@ function setup_backward_Euler_solver(
     f_imp!,
 )   
     FT = eltype(α)
+    jvp! =  JacobianAction(nothing, Q, nlsolver.nlsolver.ϵ)
     NonLinBESolver(
         α,
         f_imp!,
+        jvp!,
         nlsolver.nlsolver,
         nlsolver.isadjustable,
         nlsolver.preconditioner, 
@@ -210,10 +213,12 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
 
 
     rhs! = EulerOperator(nlbesolver.f_imp!, -α)
-
+    jvp! = nlbesolver.jvp!
+    jvp!.rhs! = rhs!
     # Call "solve" function in SystemSolvers
     nonlinearsolve!(
         rhs!,
+        jvp!,
         nlbesolver.preconditioner,
         nlbesolver.nlsolver,
         Q,
@@ -221,4 +226,5 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
         p,
         t,
     )
+
 end
