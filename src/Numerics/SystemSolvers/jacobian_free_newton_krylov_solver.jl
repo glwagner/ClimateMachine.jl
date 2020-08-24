@@ -68,6 +68,7 @@ mutable struct BatchedJacobianFreeNewtonKrylovSolver{ET, TT, AT} <: AbstractNonl
     M::Int
     # Linear solver for the Jacobian system
     linearsolver
+    ΔQ::AT 
     # residual
     residual::AT
 end
@@ -81,7 +82,8 @@ function BatchedJacobianFreeNewtonKrylovSolver(
 )
     FT = eltype(Q)
     residual = similar(Q)
-    return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, residual)
+    ΔQ  = similar(Q)
+    return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, ΔQ, residual)
 end
 
 function initialize!(
@@ -114,7 +116,7 @@ function donewtoniteration!(
 )
 
     FT = eltype(Q)
-    ΔQ = similar(Q)
+    ΔQ = solver.ΔQ
     ΔQ .= FT(0.0)
 
     #############################################################
