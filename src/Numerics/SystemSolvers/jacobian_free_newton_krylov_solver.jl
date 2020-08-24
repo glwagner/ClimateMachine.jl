@@ -6,6 +6,7 @@ mutable struct JacobianAction{FT, AT}
     rhs!
     ϵ::FT
     Q::AT
+    Qdq::AT
     cache_Fq::AT
     cache_Fqdq::AT
 end
@@ -13,7 +14,8 @@ end
 function JacobianAction(rhs!, Q, ϵ)
     cache_Fq = similar(Q)
     cache_Fqdq = similar(Q)
-    return JacobianAction(rhs!, ϵ, Q, cache_Fq, cache_Fqdq)
+    Qdq = similar(Q)
+    return JacobianAction(rhs!, ϵ, Q, Qdq, cache_Fq, cache_Fqdq)
 end
 
 
@@ -30,6 +32,7 @@ form on a vector `Δq` using the difference quotient:
 function (op::JacobianAction)(JΔQ, dQ, args...)
     rhs! = op.rhs!
     Q = op.Q
+    Qdq = op.Qdq
     ϵ = op.ϵ
     Fq = op.cache_Fq
     Fqdq = op.cache_Fqdq
@@ -46,9 +49,11 @@ function (op::JacobianAction)(JΔQ, dQ, args...)
     end
 
     β = √ϵ
-    e = factor * β * sum(abs.(Q)) + β
+    e = factor * β * norm(Q, 1, false) + β
+    
+    Qdq .= Q .+ e .* dQ
 
-    rhs!(Fqdq, Q .+ e .* dQ, args...)
+    rhs!(Fqdq, Qdq, args...)
 
     JΔQ .= (Fqdq .- Fq) ./ e
 end

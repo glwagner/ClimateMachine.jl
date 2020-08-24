@@ -440,7 +440,7 @@ timeend = FT(1);
 given_Fourier = FT(0.5);
 Fourier_bound = given_Fourier * Δ^2 / max(m.αh, m.μh, m.νd);
 Courant_bound = FT(0.5) * Δ;
-dt = min(Fourier_bound, Courant_bound)
+dt = FT(10.0)*min(Fourier_bound, Courant_bound)
 
 # # Configure a `ClimateMachine` solver.
 
@@ -486,7 +486,7 @@ solver_config =
     ode_solver = ARK548L2SA2KennedyCarpenter(
         dg,
         vdg,
-        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true),
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=false),
         Q;
         dt = dt,
         t0 = 0,
