@@ -12,10 +12,7 @@ mutable struct JacobianAction{FT, AT}
 end
 
 function JacobianAction(rhs!, Q, ϵ)
-    cache_Fq = similar(Q)
-    cache_Fqdq = similar(Q)
-    Qdq = similar(Q)
-    return JacobianAction(rhs!, ϵ, Q, Qdq, cache_Fq, cache_Fqdq)
+    return JacobianAction(rhs!, ϵ, similar(Q), similar(Q), similar(Q), similar(Q))
 end
 
 
@@ -56,6 +53,7 @@ function (op::JacobianAction)(JΔQ, dQ, args...)
     rhs!(Fqdq, Qdq, args...)
 
     JΔQ .= (Fqdq .- Fq) ./ e
+
 end
 
 function update_Q!(op::JacobianAction, Q, args...)
