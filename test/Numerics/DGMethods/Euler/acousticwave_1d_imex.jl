@@ -58,15 +58,15 @@ function main()
     numelem_horz = 10
     numelem_vert = 5
 
-    timeend = 1 * 60
+    timeend = 60 * 60
     # timeend = 33 * 60 * 60 # Full simulation
-    outputtime = 1 * 60
+    outputtime = 60 * 60
 
     expected_result = Dict()
     expected_result[Float32] = 9.5066030866432000e+13
     expected_result[Float64] = 9.5073452847149594e+13
-
-    for FT in (Float32, Float64)
+ 
+    for FT in (Float64, Float32)
         for split_explicit_implicit in (false, true)
             result = run(
                 mpicomm,
@@ -164,7 +164,7 @@ function run(
         lineardg,
         Q;
         atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
-        rtol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+        rtol = 1.0e-8, #sqrt(eps(FT)) * 0.01,
         # Maximum number of Krylov iterations in a column
     )
     # linearsolver = GeneralizedMinimalResidual(Q; M = 80, rtol = 1e-5)
