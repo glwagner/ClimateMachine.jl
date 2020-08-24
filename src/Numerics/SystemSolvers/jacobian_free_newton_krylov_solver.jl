@@ -1,13 +1,21 @@
 using Printf
 
-export BatchedJacobianFreeNewtonKrylovSolver
+export BatchedJacobianFreeNewtonKrylovSolver, JacobianAction
 
-mutable struct JacobianAction{F, FT}
-    f!::F
+mutable struct JacobianAction{FT, AT}
+    rhs!
     ϵ::FT
-    cache_Fqdq
-    cache_Fq
+    Q::AT
+    cache_Fq::AT
+    cache_Fqdq::AT
 end
+
+function JacobianAction(rhs!, Q, ϵ)
+    cache_Fq = similar(Q)
+    cache_Fqdq = similar(Q)
+    return JacobianAction(rhs!, ϵ, Q, cache_Fq, cache_Fqdq)
+end
+
 
 """
 Approximations the action of the Jacobian of a nonlinear
@@ -19,15 +27,37 @@ form on a vector `Δq` using the difference quotient:
 
 """
 
-function (op::JacobianAction)(dQ, Q, args...)
-    f! = op.f!
+function (op::JacobianAction)(JΔQ, dQ, args...)
+    rhs! = op.rhs!
+    Q = op.Q
+    ϵ = op.ϵ
     Fq = op.cache_Fq
     Fqdq = op.cache_Fqdq
-    ϵ = op.ϵ
+    
+    FT = eltype(dQ)
+    n = length(dQ)
+    normdQ = norm(dQ, weighted_norm)
 
-    f!(Fq, Q, args..., increment = false)
-    f!(Fqdq, Q + ϵ .* dQ, args..., increment = false)
-    dQ .= (Fqdq .- Fq) ./ ϵ
+    if normdQ > ϵ
+        factor = FT(1 / (n*normdQ))
+    else
+        # initial newton step, ΔQ = 0
+        factor = FT(1 / n)
+    end
+
+    β = √ϵ
+    e = factor * β * sum(abs.(Q)) + β
+
+    rhs!(Fqdq, Q .+ e .* dQ, args...)
+
+    JΔQ .= (Fqdq .- Fq) ./ e
+end
+
+function update_Q!(op::JacobianAction, Q, args...)
+    op.Q .= Q
+    Fq = op.cache_Fq
+
+    op.rhs!(Fq, Q, args...)
 end
 
 mutable struct BatchedJacobianFreeNewtonKrylovSolver{ET, TT, AT} <: AbstractNonlinearSolver
