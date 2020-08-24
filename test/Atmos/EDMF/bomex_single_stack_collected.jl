@@ -505,7 +505,7 @@ function config_diagnostics(driver_config)
 end
 
 function main()
-    FT = Float32
+    FT = Float64
 
     # DG polynomial order
     N = 1
@@ -520,12 +520,12 @@ function main()
     # For the test we set this to == 30 minutes
     timeend = FT(1800)
     #timeend = FT(3600 * 6)
-    CFLmax = FT(0.9)
+    CFLmax = FT(0.8)
 
     ######## SWITCH BETWEEN Implicit and Explicit
     IMPLICIT = true
-    # CFL_direction = (IMPLICIT ? HorizontalDirection() : VerticalDirection())
-    CFL_direction = VerticalDirection()
+    CFL_direction = (IMPLICIT ? HorizontalDirection() : VerticalDirection())
+    # CFL_direction = VerticalDirection()
     preconditioner = false
     ###########################
 
@@ -559,15 +559,15 @@ function main()
         linearsolver = BatchedGeneralizedMinimalResidual(
             dg,
             Q;
-            max_iteration = 30,
+            max_iteration = 100,
             atol = 1e-6,
-            rtol = 1e-6,
+            rtol = 1e-8,
         )
         
         nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
             Q,
             linearsolver;
-            tol = 1e-4,
+            tol = 1e-6,
         )
         
         ode_solver = ARK548L2SA2KennedyCarpenter(
