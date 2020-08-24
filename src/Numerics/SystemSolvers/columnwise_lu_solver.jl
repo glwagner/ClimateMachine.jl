@@ -395,7 +395,7 @@ function banded_matrix(
 end
 
 
-
+# Initialize empty banded matrix
 function banded_matrix(
     dg::DGModel,
     Q::MPIStateArray = MPIStateArray(dg);
@@ -455,7 +455,7 @@ function banded_matrix(
     A
 end
 
-
+# Update banded matrix
 function update_banded_matrix!(
     A::DGColumnBandedMatrix,
     f!,

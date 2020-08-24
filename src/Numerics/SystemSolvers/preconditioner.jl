@@ -4,6 +4,12 @@ export AbstractPreconditioner, ColumnwiseLUPreconditioner, preconditioner_update
 abstract type AbstractPreconditioner end
 
 
+function preconditioner_update!(op, dg, preconditioner::Nothing, args...)
+end
+function preconditioner_solve!(preconditioner::Nothing, Q)
+end
+function preconditioner_counter_update!(preconditioner::Nothing)
+end
 
 mutable struct ColumnwiseLUPreconditioner{AT} <: AbstractPreconditioner 
     A::DGColumnBandedMatrix
@@ -71,8 +77,9 @@ function preconditioner_update!(op, dg, preconditioner::ColumnwiseLUPrecondition
         PQ,
         args...
     )
-
     band_lu!(A)
+
+    
     preconditioner.counter = 0
 end
 
@@ -84,9 +91,12 @@ function preconditioner_solve!(preconditioner::ColumnwiseLUPreconditioner, Q)
     band_forward!(Q, A)
     band_back!(Q, A)
 
-
-    preconditioner.counter += 1
-
 end
 
 
+"""
+Inplace solve Q = Pinv * Q
+"""
+function preconditioner_counter_update!(preconditioner::ColumnwiseLUPreconditioner)
+    preconditioner.counter += 1
+end

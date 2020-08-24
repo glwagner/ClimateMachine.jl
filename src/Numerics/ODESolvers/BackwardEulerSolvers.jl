@@ -157,11 +157,11 @@ end
 struct NonLinearBackwardEulerSolver{NLS}
     nlsolver::NLS
     isadjustable::Bool
-    # preconditioner
-    preconditioner::Bool
-    function NonLinearBackwardEulerSolver(nlsolver; isadjustable = false, preconditioner = false)
+    # preconditioner_update_freq, -1: no preconditioner; positive number, update every freq times
+    preconditioner_update_freq::Int64
+    function NonLinearBackwardEulerSolver(nlsolver; isadjustable = false, preconditioner_update_freq = -1)
         NLS = typeof(nlsolver)
-        return new{NLS}(nlsolver, isadjustable, preconditioner)
+        return new{NLS}(nlsolver, isadjustable, preconditioner_update_freq)
     end
 end
 
@@ -171,10 +171,8 @@ mutable struct NonLinBESolver{FT, F, NLS} <: AbstractBackwardEulerSolver
     jvp!::JacobianAction
     nlsolver::NLS
     isadjustable::Bool
-    # preconditioner
-    preconditioner::Bool
     # preconditioner factors, has α information
-    factors
+    preconditioner
     
 end
 
@@ -188,14 +186,15 @@ function setup_backward_Euler_solver(
 )   
     FT = eltype(α)
     jvp! =  JacobianAction(nothing, Q, nlbesolver.nlsolver.ϵ)
-    preconditioner = ColumnwiseLUPreconditioner(f_imp!, Q)
+
+    preconditioner_update_freq = nlbesolver.preconditioner_update_freq
+    preconditioner = (preconditioner_update_freq > 0 ? ColumnwiseLUPreconditioner(f_imp!, Q, preconditioner_update_freq) : nothing)
     NonLinBESolver(
         α,
         f_imp!,
         jvp!,
         nlbesolver.nlsolver,
         nlbesolver.isadjustable,
-        nlbesolver.preconditioner, 
         preconditioner
     )
 end
@@ -221,7 +220,7 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
     nonlinearsolve!(
         rhs!,
         jvp!,
-        nlbesolver.factors,
+        nlbesolver.preconditioner,
         nlbesolver.nlsolver,
         Q,
         Qhat,

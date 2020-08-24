@@ -44,11 +44,11 @@ struct LSOnly <: AbstractNonlinearSolver
     linearsolver
 end
 
-function donewtoniteration!(implicitoperator!, linearoperator!, factors, Q, Qrhs, solver::LSOnly, args...)
+function donewtoniteration!(implicitoperator!, linearoperator!, preconditioner, Q, Qrhs, solver::LSOnly, args...)
     @info "donewtoniteration! linearsolve!", args...
     linearsolve!(
         linearoperator!,
-        factors,
+        preconditioner,
         solver.linearsolver,
         Q,
         Qrhs,
@@ -101,7 +101,7 @@ where `F = N(Q) - Qrhs`, N(Q) is
 function nonlinearsolve!(
     rhs!,
     jvp!,
-    factors,
+    preconditioner,
     solver::AbstractNonlinearSolver,
     Q::AT,
     Qrhs,
@@ -142,24 +142,27 @@ function nonlinearsolve!(
 
     while !converged && iters < max_newton_iters
         update_Q!(jvp!, Q, args...)
-        # factors is the approximation of the Jacobian dF(Q)
+        # preconditioner is the approximation of the Jacobian dF(Q)
         # if preconditioner
-        #     # update the preconditioner, factors
+        #     # update the preconditioner, preconditioner
         #     FT = eltype(Q)
         #     # TODO what is the single_column
         #     single_column = false
-        #     factors = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        #     preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
         #     # construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
         # end
 
-        # factors = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
-        preconditioner_update!(jvp!, rhs!.f!, factors, nothing, FT(NaN))
+        # preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        preconditioner_update!(jvp!, rhs!.f!, preconditioner, nothing, FT(NaN))
         
 
         residual_norm, linear_iterations =
-            donewtoniteration!(rhs!, jvp!, factors, Q, Qrhs, solver, args...)
+            donewtoniteration!(rhs!, jvp!, preconditioner, Q, Qrhs, solver, args...)
         @info "Linear solver converged in $linear_iterations iterations"
         iters += 1
+
+        preconditioner_counter_update!(preconditioner)
+
 
         if !isfinite(residual_norm)
             error("norm of residual is not finite after $iters iterations of `donewtoniteration!`")
@@ -209,7 +212,7 @@ settolerance!(
 
 doiteration!(
     linearoperator!,
-    factors,
+    preconditioner,
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
@@ -217,7 +220,7 @@ doiteration!(
     args...,
 ) = throw(MethodError(
     doiteration!,
-    (linearoperator!, factors, Q, Qrhs, solver, tolerance, args...),
+    (linearoperator!, preconditioner, Q, Qrhs, solver, tolerance, args...),
 ))
 
 initialize!(
@@ -256,7 +259,7 @@ jvp! = (ΔQ) -> F(Q + ΔQ)
 
 function linearsolve!(
     linearoperator!,
-    factors,
+    preconditioner,
     solver::AbstractIterativeSystemSolver,
     Q,
     Qrhs,
@@ -271,7 +274,7 @@ function linearsolve!(
 
     while !converged && iters < max_iters
         converged, inner_iters, residual_norm =
-            doiteration!(linearoperator!, factors, Q, Qrhs, solver, args...)
+            doiteration!(linearoperator!, preconditioner, Q, Qrhs, solver, args...)
 
         iters += inner_iters
 
