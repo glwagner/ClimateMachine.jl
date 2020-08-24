@@ -101,7 +101,7 @@ where `F = N(Q) - Qrhs`, N(Q) is
 function nonlinearsolve!(
     rhs!,
     jvp!,
-    preconditioner::Bool,
+    factors,
     solver::AbstractNonlinearSolver,
     Q::AT,
     Qrhs,
@@ -110,6 +110,7 @@ function nonlinearsolve!(
     cvg = Ref{Bool}(),
 ) where {AT}
 
+    FT = eltype(Q)
     tol = solver.tol
     converged = false
     iters = 0
@@ -138,18 +139,21 @@ function nonlinearsolve!(
     #     solver.ϵ,
     #     args...,
     # )
-    factors = nothing
 
     while !converged && iters < max_newton_iters
         update_Q!(jvp!, Q, args...)
         # factors is the approximation of the Jacobian dF(Q)
-        if preconditioner
-            # update the preconditioner, factors
-            FT = eltype(Q)
-            # TODO what is the single_column
-            single_column = false
-            factors = construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
-        end
+        # if preconditioner
+        #     # update the preconditioner, factors
+        #     FT = eltype(Q)
+        #     # TODO what is the single_column
+        #     single_column = false
+        #     factors = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        #     # construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        # end
+
+        # factors = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        preconditioner_update!(jvp!, rhs!.f!, factors, nothing, FT(NaN))
         
 
         residual_norm, linear_iterations =
@@ -218,12 +222,11 @@ doiteration!(
 
 initialize!(
     linearoperator!,
-    factors, 
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
     args...,
-) = throw(MethodError(initialize!, (linearoperator!, factors, Q, Qrhs, solver, args...)))
+) = throw(MethodError(initialize!, (linearoperator!, Q, Qrhs, solver, args...)))
 
 """
     prefactorize(linop!, linearsolver, args...)
@@ -263,7 +266,7 @@ function linearsolve!(
 )
     converged = false
     iters = 0
-    converged, residual_norm0 = initialize!(linearoperator!, factors, Q, Qrhs, solver, args...)
+    converged, residual_norm0 = initialize!(linearoperator!, Q, Qrhs, solver, args...)
     converged && return iters
 
     while !converged && iters < max_iters
@@ -301,4 +304,5 @@ include("generalized_conjugate_residual_solver.jl")
 include("conjugate_gradient_solver.jl")
 include("columnwise_lu_solver.jl")
 include("batched_generalized_minimal_residual_solver.jl")
+include("preconditioner.jl")
 end

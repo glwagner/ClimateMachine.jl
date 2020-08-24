@@ -63,7 +63,6 @@ end
 
 function initialize!(
     linearoperator!,
-    factors,
     Q,
     Qrhs,
     solver::GeneralizedMinimalResidual,
@@ -180,7 +179,7 @@ function doiteration!(
     wait(array_device(Q), event)
 
     # if not converged restart
-    converged || initialize!(linearoperator!, factors, Q, Qrhs, solver, args...; restart=true)
+    converged || initialize!(linearoperator!, Q, Qrhs, solver, args...; restart=true)
 
     (converged, j, residual_norm)
 end

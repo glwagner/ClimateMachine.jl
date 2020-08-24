@@ -173,8 +173,8 @@ function donewtoniteration!(
     rhs!(R, Q, args...)
     R .-= Qrhs
     resnorm = norm(R, weighted_norm)
-    # @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
+    @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
     #############################################################
-    
+    # error("stop")
     return resnorm, iters
 end

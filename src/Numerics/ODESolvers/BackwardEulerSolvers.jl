@@ -181,21 +181,22 @@ end
 Δt_is_adjustable(nlsolver::NonLinBESolver) = nlsolver.isadjustable
 
 function setup_backward_Euler_solver(
-    nlsolver::NonLinearBackwardEulerSolver,
+    nlbesolver::NonLinearBackwardEulerSolver,
     Q,
     α,
     f_imp!,
 )   
     FT = eltype(α)
-    jvp! =  JacobianAction(nothing, Q, nlsolver.nlsolver.ϵ)
+    jvp! =  JacobianAction(nothing, Q, nlbesolver.nlsolver.ϵ)
+    preconditioner = ColumnwiseLUPreconditioner(f_imp!, Q)
     NonLinBESolver(
         α,
         f_imp!,
         jvp!,
-        nlsolver.nlsolver,
-        nlsolver.isadjustable,
-        nlsolver.preconditioner, 
-        nothing
+        nlbesolver.nlsolver,
+        nlbesolver.isadjustable,
+        nlbesolver.preconditioner, 
+        preconditioner
     )
 end
 
@@ -216,10 +217,11 @@ function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
     jvp! = nlbesolver.jvp!
     jvp!.rhs! = rhs!
     # Call "solve" function in SystemSolvers
+
     nonlinearsolve!(
         rhs!,
         jvp!,
-        nlbesolver.preconditioner,
+        nlbesolver.factors,
         nlbesolver.nlsolver,
         Q,
         Qhat,
