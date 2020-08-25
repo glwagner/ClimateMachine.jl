@@ -396,9 +396,9 @@ end
 
 
 # Initialize empty banded matrix
-function banded_matrix(
+function empty_banded_matrix(
     dg::DGModel,
-    Q::MPIStateArray = MPIStateArray(dg);
+    Q::MPIStateArray;
     single_column = false,
 )
     bl = dg.balance_law

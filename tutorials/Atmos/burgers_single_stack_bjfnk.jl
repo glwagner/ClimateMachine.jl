@@ -212,29 +212,14 @@ vars_state(::BurgersEquation, ::GradientFlux, FT) = @vars(
 # `init_state_prognostic!`. Note that
 # - this method is only called at `t=0`.
 # - `aux.coord` is available here because we've specified `coord` in `vars_state(m, aux, FT)`.
-function burgers_nodal_init_state_auxiliary!(
+# - `init_aux!` initializes the auxiliary gravitational potential field needed for vertical projections.
+function init_state_auxiliary!(
     m::BurgersEquation,
     aux::Vars,
-    tmp::Vars,
     geom::LocalGeometry,
 )
     aux.coord = geom.coord
-end;
-
-# `init_aux!` initializes the auxiliary gravitational potential field needed for vertical projections
-function init_state_auxiliary!(
-    m::BurgersEquation,
-    state_auxiliary::MPIStateArray,
-    grid,
-)
-    init_aux!(m, m.orientation, state_auxiliary, grid)
-
-    nodal_init_state_auxiliary!(
-        m,
-        burgers_nodal_init_state_auxiliary!,
-        state_auxiliary,
-        grid,
-    )
+    init_aux!(m.orientation, m.param_set, aux)
 end;
 
 # Specify the initial values in `state::Vars`. Note that

@@ -45,13 +45,13 @@ function ColumnwiseLUPreconditioner(dg, Q0, update_freq=100)
     PQ = similar(Q0)
 
     # TODO: can we get away with just passing the grid?
-    A = banded_matrix(
+    A = empty_banded_matrix(
         dg,
         Q;
         single_column = single_column,
     )
 
-    band_lu!(A)
+    # band_lu!(A)
     ColumnwiseLUPreconditioner(A, Q, PQ, -1, update_freq)
 end
 
