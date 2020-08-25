@@ -1,4 +1,4 @@
-export AbstractPreconditioner, ColumnwiseLUPreconditioner, preconditioner_update!, preconditioner_solve!
+export AbstractPreconditioner, ColumnwiseLUPreconditioner, preconditioner_update!, preconditioner_solve!, preconditioner_counter_update!
 
 
 abstract type AbstractPreconditioner end
@@ -79,7 +79,7 @@ function preconditioner_update!(op, dg, preconditioner::ColumnwiseLUPrecondition
     )
     band_lu!(A)
 
-    
+
     preconditioner.counter = 0
 end
 

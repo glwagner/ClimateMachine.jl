@@ -167,7 +167,7 @@ function run(
         rtol = 1.0e-8, #sqrt(eps(FT)) * 0.01,
         # Maximum number of Krylov iterations in a column
     )
-    # linearsolver = GeneralizedMinimalResidual(Q; M = 80, rtol = 1e-5)
+   
 
     if split_explicit_implicit
         rem_dg = remainder_DGModel(
@@ -182,7 +182,7 @@ function run(
     odesolver = ARK2GiraldoKellyConstantinescu(
         split_explicit_implicit ? rem_dg : dg,
         lineardg,
-        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner = false),
+        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner_update_freq = -1),
         Q;
         dt = dt,
         t0 = 0,

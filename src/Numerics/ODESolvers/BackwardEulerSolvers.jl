@@ -91,9 +91,9 @@ time step size.
 struct LinearBackwardEulerSolver{LS}
     solver::LS
     isadjustable::Bool
-    preconditioner::Bool
-    LinearBackwardEulerSolver(solver; isadjustable = false, preconditioner = false) =
-        new{typeof(solver)}(solver, isadjustable, preconditioner)
+    preconditioner_update_freq::Int64
+    LinearBackwardEulerSolver(solver; isadjustable = false, preconditioner_update_freq = -1) =
+        new{typeof(solver)}(solver, isadjustable, preconditioner_update_freq)
 end
 
 """
@@ -111,7 +111,9 @@ mutable struct LinBESolver{FT, F, LS} <: AbstractBackwardEulerSolver
     f_imp!::F
     solver::LS
     isadjustable::Bool
-    preconditioner::Bool
+    # used only for iterative solver
+    preconditioner
+    # used only for direct solver
     factors
 end
 
@@ -123,7 +125,15 @@ function setup_backward_Euler_solver(lin::LinearBackwardEulerSolver, Q, α, f_im
 
     factors = prefactorize(rhs!, lin.solver, Q, nothing, FT(NaN))
 
-    LinBESolver(α, f_imp!, lin.solver, lin.isadjustable, lin.preconditioner, factors)
+    # when direct solver is applied preconditioner_update_freq <= 0
+    @assert(typeof(lin.solver) <: AbstractIterativeSystemSolver || lin.preconditioner_update_freq <= 0)
+    
+    preconditioner_update_freq = lin.preconditioner_update_freq
+    # construct an empty preconditioner
+    preconditioner = (preconditioner_update_freq > 0 ? ColumnwiseLUPreconditioner(f_imp!, Q, preconditioner_update_freq) : nothing)
+    
+    
+    LinBESolver(α, f_imp!, lin.solver, lin.isadjustable, preconditioner, factors)
 end
 
 function update_backward_Euler_solver!(lin::LinBESolver, Q, α)
@@ -142,14 +152,23 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         update_backward_Euler_solver!(lin, Q, α)
     end
 
-    if lin.preconditioner
-        # update the preconditioner, lin.factors
+    # if lin.preconditioner
+    #     # update the preconditioner, lin.factors
+    #     FT = eltype(α)
+    #     # TODO what is the single_column
+    #     single_column = false
+    #     lin.factors = construct_preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+    # end
+
+    if typeof(lin.solver) <: AbstractIterativeSystemSolver
         FT = eltype(α)
-        # TODO what is the single_column
-        single_column = false
-        lin.factors = construct_preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        # preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        preconditioner_update!(rhs!, rhs!.f!, lin.preconditioner, nothing, FT(NaN))
+        linearsolve!(rhs!, lin.preconditioner, lin.solver, Q, Qhat, p, t)
+        preconditioner_counter_update!(lin.preconditioner)
+    else
+        linearsolve!(rhs!, lin.factors, lin.solver, Q, Qhat, p, t)
     end
-    linearsolve!(rhs!, lin.factors, lin.solver, Q, Qhat, p, t)
 end
 
 
@@ -188,6 +207,7 @@ function setup_backward_Euler_solver(
     jvp! =  JacobianAction(nothing, Q, nlbesolver.nlsolver.ϵ)
 
     preconditioner_update_freq = nlbesolver.preconditioner_update_freq
+    # construct an empty preconditioner
     preconditioner = (preconditioner_update_freq > 0 ? ColumnwiseLUPreconditioner(f_imp!, Q, preconditioner_update_freq) : nothing)
     NonLinBESolver(
         α,
