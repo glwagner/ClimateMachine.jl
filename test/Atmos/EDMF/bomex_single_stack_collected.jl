@@ -526,7 +526,7 @@ function main()
     IMPLICIT = true
     CFL_direction = (IMPLICIT ? HorizontalDirection() : VerticalDirection())
     # CFL_direction = VerticalDirection()
-    preconditioner = false
+    preconditioner_update_freq = 100
     ###########################
 
 
@@ -559,21 +559,21 @@ function main()
         linearsolver = BatchedGeneralizedMinimalResidual(
             dg,
             Q;
-            max_iteration = 100,
-            atol = 1e-6,
-            rtol = 1e-8,
+            max_iteration = 1000,
+            atol = 1e-3,
+            rtol = 1e-3,
         )
         
         nonlinearsolver = BatchedJacobianFreeNewtonKrylovSolver(
             Q,
             linearsolver;
-            tol = 1e-6,
+            tol = 1e-3,
         )
         
         ode_solver = ARK548L2SA2KennedyCarpenter(
             dg,
             vdg,
-            NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=preconditioner),
+            NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner_update_freq = preconditioner_update_freq),
             Q;
             dt = solver_config.dt, 
             t0 = 0,
