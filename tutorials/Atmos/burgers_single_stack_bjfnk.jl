@@ -503,7 +503,7 @@ solver_config =
     ode_solver = ARK548L2SA2KennedyCarpenter(
         dg,
         vdg,
-        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner_update_freq=100),
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner_update_freq=1000),
         Q;
         dt = dt,
         t0 = 0,

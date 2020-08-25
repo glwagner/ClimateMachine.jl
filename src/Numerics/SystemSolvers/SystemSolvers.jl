@@ -44,7 +44,7 @@ struct LSOnly <: AbstractNonlinearSolver
     linearsolver
 end
 
-function donewtoniteration!(implicitoperator!, linearoperator!, preconditioner, Q, Qrhs, solver::LSOnly, args...)
+function donewtoniteration!(rhs!, linearoperator!, preconditioner, Q, Qrhs, solver::LSOnly, args...)
     @info "donewtoniteration! linearsolve!", args...
     linearsolve!(
         linearoperator!,
@@ -57,45 +57,16 @@ function donewtoniteration!(implicitoperator!, linearoperator!, preconditioner, 
     )
 end
 
-# function apply_jacobian!(
-#     JΔQ,
-#     rhs!,
-#     Q,
-#     dQ,
-#     ϵ,
-#     args...,
-# )   
-#     FT = eltype(Q)
-#     n = length(dQ)
-#     normdQ = norm(dQ, weighted_norm)
-
-#     if normdQ > ϵ
-#         factor = FT(1 / (n*normdQ))
-#     else
-#         # initial newton step, ΔQ = 0
-#         factor = FT(1 / n)
-#     end
-
-#     β = √ϵ
-#     e = factor * β * sum(abs.(Q)) + β
-
-#     Fq = similar(Q)
-#     Fqdq = similar(Q)
-#     # rhs!(Fq, Q, args..., increment = false)
-#     # rhs!(Fqdq, Q .+ e .* dQ, args..., increment = false)
-
-#     rhs!(Fq, Q, args...)
-#     rhs!(Fqdq, Q .+ e .* dQ, args...)
-
-#     JΔQ .= (Fqdq .- Fq) ./ e
-# end
 
 """
 
-Solving F(Q) == 0 via Newton,
+Solving rhs!(Q) = Qrhs via Newton,
 
-where `F = N(Q) - Qrhs`, N(Q) is
-`implicitoperator!`.
+where `F = rhs!(Q) - Qrhs`
+
+dF/dQ(Q^n) ΔQ ≈ jvp!(ΔQ;  Q^n, F(Q^n))
+
+preconditioner ≈ dF/dQ(Q)
 
 """
 function nonlinearsolve!(
@@ -123,39 +94,16 @@ function nonlinearsolve!(
     end
     converged && return iters
 
-    """
-    Want:
-        (*) linearoperator!(Result, CurrentState:ΔQ, args...)
-    
-    Want the Jacobian action (jvp!) to behave just like
-    a standard rhs evaluation as in (*)
-    """
-
-    # Create Jacobian action here, since Q is updated in the loop
-    # jvp! = (JΔQ, ΔQ, args...) -> apply_jacobian!(JΔQ, 
-    #     rhs!,
-    #     Q,
-    #     ΔQ,
-    #     solver.ϵ,
-    #     args...,
-    # )
 
     while !converged && iters < max_newton_iters
+
+        # dF/dQ(Q^n) ΔQ ≈ jvp!(ΔQ;  Q^n, F(Q^n)), update Q^n in jvp!
         update_Q!(jvp!, Q, args...)
-        # preconditioner is the approximation of the Jacobian dF(Q)
-        # if preconditioner
-        #     # update the preconditioner, preconditioner
-        #     FT = eltype(Q)
-        #     # TODO what is the single_column
-        #     single_column = false
-        #     preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
-        #     # construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
-        # end
-
-        # preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
-        preconditioner_update!(jvp!, rhs!.f!, preconditioner, nothing, FT(NaN))
         
+        # update preconditioner based on finite difference, with jvp!
+        preconditioner_update!(jvp!, rhs!.f!, preconditioner, nothing, FT(NaN))
 
+        # do newton iteration with Q^{n+1} = Q^{n} - dF/dQ(Q^n)⁻¹ (rhs!(Q) - Qrhs)
         residual_norm, linear_iterations =
             donewtoniteration!(rhs!, jvp!, preconditioner, Q, Qrhs, solver, args...)
         @info "Linear solver converged in $linear_iterations iterations"
@@ -255,7 +203,6 @@ called.
 
 jvp! = (ΔQ) -> F(Q + ΔQ)
 """
-
 
 function linearsolve!(
     linearoperator!,

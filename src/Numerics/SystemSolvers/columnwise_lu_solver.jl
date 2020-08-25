@@ -395,7 +395,7 @@ function banded_matrix(
 end
 
 
-# Initialize empty banded matrix
+# Initialize an empty banded matrix
 function empty_banded_matrix(
     dg::DGModel,
     Q::MPIStateArray;
@@ -490,12 +490,6 @@ function update_banded_matrix!(
     dim = dimensionality(grid)
 
     Nqj = dim == 2 ? 1 : Nq
-
-    # first horizontal DOF index
-    # second horizontal DOF index
-    # band index -q:p
-    # vertical DOF index
-    # horizontal element index
     
     # TODO ask Lucas!
     # fill!(A, zero(FT))

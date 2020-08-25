@@ -152,14 +152,6 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
         update_backward_Euler_solver!(lin, Q, α)
     end
 
-    # if lin.preconditioner
-    #     # update the preconditioner, lin.factors
-    #     FT = eltype(α)
-    #     # TODO what is the single_column
-    #     single_column = false
-    #     lin.factors = construct_preconditioner(rhs!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
-    # end
-
     if typeof(lin.solver) <: AbstractIterativeSystemSolver
         FT = eltype(α)
         # preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
@@ -172,7 +164,25 @@ function (lin::LinBESolver)(Q, Qhat, α, p, t)
 end
 
 
-###################################################################################################
+########################################################################
+
+
+
+"""
+struct NonLinearBackwardEulerSolver{NLS}
+    nlsolver::NLS
+    isadjustable::Bool
+    preconditioner_update_freq::Int64
+end
+
+Helper type for specifying building a nonlinear backward Euler solver with a nonlinear
+solver.  
+
+nlsolver: iterative nonlinear solver, i.e., JacobianFreeNewtonKrylovSolver
+isadjustable: TODO not used, might use for updating preconditioner
+preconditioner_update_freq:  relavent to Jacobian free -1: no preconditioner; 
+                             positive number, update every freq times
+"""
 struct NonLinearBackwardEulerSolver{NLS}
     nlsolver::NLS
     isadjustable::Bool
@@ -184,18 +194,49 @@ struct NonLinearBackwardEulerSolver{NLS}
     end
 end
 
+
+"""
+    LinBESolver
+
+Concrete implementation of an `AbstractBackwardEulerSolver` to use nonlinear
+solvers of type `NLS`. See helper type
+[`NonLinearBackwardEulerSolver`](@ref)
+```
+    Q = Qhat + α f_imp(Q, param, time)
+```
+"""
+
 mutable struct NonLinBESolver{FT, F, NLS} <: AbstractBackwardEulerSolver
+    # Solve Q - α f_imp(Q) = Qrhs, not used 
     α::FT
+    # implcit operator 
     f_imp!::F
+    # jacobian action, which approximates drhs!/dQ⋅ΔQ , here rhs!(Q) = Q - α f_imp(Q) 
     jvp!::JacobianAction
+    # nonlinear solver
     nlsolver::NLS
+    # whether adjust the time step or not, not used
     isadjustable::Bool
-    # preconditioner factors, has α information
+    # preconditioner, approximation of drhs!/dQ
     preconditioner
     
 end
 
 Δt_is_adjustable(nlsolver::NonLinBESolver) = nlsolver.isadjustable
+
+
+
+"""
+    setup_backward_Euler_solver(solver::NonLinearBackwardEulerSolver, Q, α, tendency!)
+
+Returns a concrete implementation of an `AbstractBackwardEulerSolver` that will
+solve for `Q` in nonlinear systems of the form of
+```
+    Q = Qhat + α f(Q, param, time)
+```
+Create an empty JacobianAction 
+Create an empty preconditioner if preconditioner_update_freq > 0
+"""
 
 function setup_backward_Euler_solver(
     nlbesolver::NonLinearBackwardEulerSolver,
@@ -203,9 +244,10 @@ function setup_backward_Euler_solver(
     α,
     f_imp!,
 )   
-    FT = eltype(α)
+    # Create an empty JacobianAction (without operator) 
     jvp! =  JacobianAction(nothing, Q, nlbesolver.nlsolver.ϵ)
 
+    # Create an empty preconditioner if preconditioner_update_freq > 0
     preconditioner_update_freq = nlbesolver.preconditioner_update_freq
     # construct an empty preconditioner
     preconditioner = (preconditioner_update_freq > 0 ? ColumnwiseLUPreconditioner(f_imp!, Q, preconditioner_update_freq) : nothing)
@@ -219,27 +261,21 @@ function setup_backward_Euler_solver(
     )
 end
 
-# function update_backward_Euler_solver!(nlbesolver::NonLinBESolver, Q, α)
-#     # TODO: What else needs to be updated? The linear solver?
-#     # Should the `NonLinBESolver` object also point to
-#     # a corresponding `LinBESolver` for the linear problem?
 
-#     @info "NonLinBESolver update_backward_Euler_solver!"
-#     nlbesolver.α = α
-#     update_backward_Euler_solver!(nlbesolver.nlsolver.lsolver, Q, α)
-# end
-
+"""
+Nonlinear solve
+Update rhs! with α
+Update the rhs! in the jacobian action jvp!
+"""
 function (nlbesolver::NonLinBESolver)(Q, Qhat, α, p, t)
 
-
     rhs! = EulerOperator(nlbesolver.f_imp!, -α)
-    jvp! = nlbesolver.jvp!
-    jvp!.rhs! = rhs!
-    # Call "solve" function in SystemSolvers
+   
+    nlbesolver.jvp!.rhs! = rhs!
 
     nonlinearsolve!(
         rhs!,
-        jvp!,
+        nlbesolver.jvp!,
         nlbesolver.preconditioner,
         nlbesolver.nlsolver,
         Q,

@@ -2,6 +2,31 @@ using Printf
 
 export BatchedJacobianFreeNewtonKrylovSolver, JacobianAction
 
+"""
+mutable struct JacobianAction{FT, AT}
+    rhs!
+    ϵ::FT
+    Q::AT
+    Qdq::AT
+    cache_Fq::AT
+    cache_Fqdq::AT
+end
+
+Solve for Frhs = F(q), the Jacobian action is computed 
+
+    ∂F(Q)      F(Q + eΔQ) - F(Q)
+    ---- ΔQ ≈ -------------------
+     ∂Q                e
+
+
+rhs!           : nonlinear operator F(Q)
+ϵ::FT          : ϵ used for finite difference, e = e(Q, ϵ)
+Q::AT          : cache for Q
+Qdq::AT        : container for Q + ϵΔQ
+cache_Fq::AT   : cache for F(Q) 
+cache_Fqdq::AT : container for F(Q + ϵΔQ)
+"""
+
 mutable struct JacobianAction{FT, AT}
     rhs!
     ϵ::FT
@@ -18,12 +43,14 @@ end
 
 """
 Approximations the action of the Jacobian of a nonlinear
-form on a vector `Δq` using the difference quotient:
+form on a vector `ΔQ` using the difference quotient:
 
-∂F(q)      F(q + ϵΔq) - F(q)
----- Δq ≈ -------------------
- ∂q                ϵ
+      ∂F(Q)      F(Q + e ΔQ) - F(Q)
+JΔQ = ---- ΔQ ≈ -------------------
+       ∂Q                e
 
+
+Compute  JΔQ with cached Q and F(Q), and the direction  dQ
 """
 
 function (op::JacobianAction)(JΔQ, dQ, args...)
@@ -54,10 +81,11 @@ function (op::JacobianAction)(JΔQ, dQ, args...)
 
     JΔQ .= (Fqdq .- Fq) ./ e
 
-    # @info norm(Q, false), norm(Qdq, false), norm(Fq, false), norm(Fqdq, false), e
-
 end
 
+"""
+update cached Q and F(Q) before each Newton iteration
+"""
 function update_Q!(op::JacobianAction, Q, args...)
     op.Q .= Q
     Fq = op.cache_Fq
@@ -65,19 +93,37 @@ function update_Q!(op::JacobianAction, Q, args...)
     op.rhs!(Fq, Q, args...)
 end
 
-mutable struct BatchedJacobianFreeNewtonKrylovSolver{ET, TT, AT} <: AbstractNonlinearSolver
-    # Tolerances
-    ϵ::ET
-    tol::TT
+
+
+"""
+Solve for Frhs = F(Q), by finite difference
+
+    ∂F(Q)      F(Q + eΔQ) - F(Q)
+    ---- ΔQ ≈ -------------------
+     ∂Q                e
+
+     Q^n+1 = Q^n - dF/dQ(Q^{n})⁻¹ (F(Q^n) - Frhs)
+
+     set ΔQ = F(Q^n) - Frhs
+"""
+mutable struct BatchedJacobianFreeNewtonKrylovSolver{FT, AT} <: AbstractNonlinearSolver
+    # small number used for finite difference
+    ϵ::FT
+    # tolerances for convergence
+    tol::FT
     # Max number of Newton iterations
     M::Int
     # Linear solver for the Jacobian system
     linearsolver
+    # container for unknows ΔQ, which is updated for the linear solver
     ΔQ::AT 
-    # residual
+    # contrainer for F(Q)
     residual::AT
 end
 
+"""
+BatchedJacobianFreeNewtonKrylovSolver constructor
+"""
 function BatchedJacobianFreeNewtonKrylovSolver(
     Q,
     linearsolver;
@@ -91,6 +137,9 @@ function BatchedJacobianFreeNewtonKrylovSolver(
     return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, ΔQ, residual)
 end
 
+"""
+BatchedJacobianFreeNewtonKrylovSolver initialize the residual
+"""
 function initialize!(
     rhs!,
     Q,
@@ -107,13 +156,27 @@ function initialize!(
     return norm(R, weighted_norm)
 end
 
-# rhs!(Q) =  F(Q)
-# jvp!(Q)  = J(Q)ΔQ, here J(Q) = dF
-# factors(Q) is the approximation of J(Q)
+"""
+Solve for Frhs = F(Q), by finite difference
+
+Q^n+1 = Q^n - dF/dQ(Q^{n})⁻¹ (F(Q^n) - Frhs)
+
+set ΔQ = F(Q^n) - Frhs
+
+
+rhs!:  functor rhs!(Q) =  F(Q)
+jvp!:  Jacobian action jvp!(ΔQ)  = dF/dQ(Q) ⋅ ΔQ
+preconditioner: approximation of dF/dQ(Q)
+
+Q : Q^n
+Qrhs : Frhs
+solver: linear solver
+"""
+
 function donewtoniteration!(
     rhs!,   
     jvp!,                
-    factors,
+    preconditioner,
     Q,
     Qrhs,
     solver::BatchedJacobianFreeNewtonKrylovSolver,
@@ -124,57 +187,37 @@ function donewtoniteration!(
     ΔQ = solver.ΔQ
     ΔQ .= FT(0.0)
 
-    #############################################################
-    # Groupsize = "number of threads"
-    # WANT: Execute N independent Newton iterations, where
-    # N = Groupsize.
-    #=
 
-    R(Q) == 0, R = N - Qrhs, where N = rhs!
 
-    N(Q) = Q - V(Q), where V(Q) is the 1-D nonlinear operator
-
-    =#
-
+    # R(Q) == 0, R = F(Q) - Qrhs, where F = rhs!
     # Compute right-hand side for Jacobian system:
     # J(Q)ΔQ = -R
     # where R = Qrhs - F(Q)
     R = solver.residual
     # Computes F(Q) and stores in R
     rhs!(R, Q, args...)
-    # Computes R = R - Qrhs
+    # Computes R = F(Q^n) - Qrhs
     R .-= Qrhs
     r0norm = norm(R, weighted_norm)
-    # @info "Initial nonlinear residual F(Q): $r0norm"
-
-    #= Inside linearsolve!
-        need to perform the following:
-        1. Preconditioning step (right PC)
-            - Solve for w: Pw = ΔQ, where P
-            is our preconditioner
-        2. apply jvp on w
-    =#
-
-    # factors is an approximation of J(Q)
-
+        
+    # R = F(Q^n) - Frhs
+    # ΔQ = dF/dQ(Q^{n})⁻¹ (Frhs - F(Q^n)) = -dF/dQ(Q^{n})⁻¹ R 
     iters = linearsolve!(
         jvp!,
-        factors,
+        preconditioner,
         solver.linearsolver,
         ΔQ,
         -R,
         args...,
     )
 
-    # Newton correction
+    # Newton correction Q^{n+1} = Q^n + dF/dQ(Q^{n})⁻¹ (Frhs - F(Q^n))
     Q .+= ΔQ
 
-    # Reevaluate residual with new solution
+    # TODO save the Reevaluate residual with new solution
     rhs!(R, Q, args...)
     R .-= Qrhs
     resnorm = norm(R, weighted_norm)
-    @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
-    #############################################################
-    # error("stop")
+    
     return resnorm, iters
 end
