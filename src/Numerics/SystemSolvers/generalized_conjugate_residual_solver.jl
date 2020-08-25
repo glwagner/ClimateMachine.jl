@@ -63,7 +63,6 @@ end
 
 function initialize!(
     linearoperator!,
-    factors,
     Q,
     Qrhs,
     solver::GeneralizedConjugateResidual,

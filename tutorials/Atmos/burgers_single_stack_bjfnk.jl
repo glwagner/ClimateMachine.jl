@@ -212,14 +212,29 @@ vars_state(::BurgersEquation, ::GradientFlux, FT) = @vars(
 # `init_state_prognostic!`. Note that
 # - this method is only called at `t=0`.
 # - `aux.coord` is available here because we've specified `coord` in `vars_state(m, aux, FT)`.
-# - `init_aux!` initializes the auxiliary gravitational potential field needed for vertical projections.
-function init_state_auxiliary!(
+function burgers_nodal_init_state_auxiliary!(
     m::BurgersEquation,
     aux::Vars,
+    tmp::Vars,
     geom::LocalGeometry,
 )
     aux.coord = geom.coord
-    init_aux!(m.orientation, m.param_set, aux)
+end;
+
+# `init_aux!` initializes the auxiliary gravitational potential field needed for vertical projections
+function init_state_auxiliary!(
+    m::BurgersEquation,
+    state_auxiliary::MPIStateArray,
+    grid,
+)
+    init_aux!(m, m.orientation, state_auxiliary, grid)
+
+    nodal_init_state_auxiliary!(
+        m,
+        burgers_nodal_init_state_auxiliary!,
+        state_auxiliary,
+        grid,
+    )
 end;
 
 # Specify the initial values in `state::Vars`. Note that
@@ -440,7 +455,7 @@ timeend = FT(1);
 given_Fourier = FT(0.5);
 Fourier_bound = given_Fourier * Δ^2 / max(m.αh, m.μh, m.νd);
 Courant_bound = FT(0.5) * Δ;
-dt = min(Fourier_bound, Courant_bound)
+dt = FT(10.0)*min(Fourier_bound, Courant_bound)
 
 # # Configure a `ClimateMachine` solver.
 
@@ -486,7 +501,7 @@ solver_config =
     ode_solver = ARK548L2SA2KennedyCarpenter(
         dg,
         vdg,
-        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner=true),
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner_update_freq=100),
         Q;
         dt = dt,
         t0 = 0,
@@ -495,7 +510,6 @@ solver_config =
     )
 
     solver_config.solver = ode_solver 
-
 
 
 # ## Inspect the initial conditions for a single nodal stack

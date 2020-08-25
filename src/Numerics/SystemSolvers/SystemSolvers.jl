@@ -44,11 +44,11 @@ struct LSOnly <: AbstractNonlinearSolver
     linearsolver
 end
 
-function donewtoniteration!(implicitoperator!, linearoperator!, factors, Q, Qrhs, solver::LSOnly, args...)
+function donewtoniteration!(implicitoperator!, linearoperator!, preconditioner, Q, Qrhs, solver::LSOnly, args...)
     @info "donewtoniteration! linearsolve!", args...
     linearsolve!(
         linearoperator!,
-        factors,
+        preconditioner,
         solver.linearsolver,
         Q,
         Qrhs,
@@ -101,7 +101,7 @@ where `F = N(Q) - Qrhs`, N(Q) is
 function nonlinearsolve!(
     rhs!,
     jvp!,
-    preconditioner::Bool,
+    preconditioner,
     solver::AbstractNonlinearSolver,
     Q::AT,
     Qrhs,
@@ -110,6 +110,7 @@ function nonlinearsolve!(
     cvg = Ref{Bool}(),
 ) where {AT}
 
+    FT = eltype(Q)
     tol = solver.tol
     converged = false
     iters = 0
@@ -138,24 +139,30 @@ function nonlinearsolve!(
     #     solver.ϵ,
     #     args...,
     # )
-    factors = nothing
 
     while !converged && iters < max_newton_iters
         update_Q!(jvp!, Q, args...)
-        # factors is the approximation of the Jacobian dF(Q)
-        if preconditioner
-            # update the preconditioner, factors
-            FT = eltype(Q)
-            # TODO what is the single_column
-            single_column = false
-            factors = construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
-        end
+        # preconditioner is the approximation of the Jacobian dF(Q)
+        # if preconditioner
+        #     # update the preconditioner, preconditioner
+        #     FT = eltype(Q)
+        #     # TODO what is the single_column
+        #     single_column = false
+        #     preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        #     # construct_preconditioner(jvp!, rhs!.f!, single_column, Q, nothing, FT(NaN), )
+        # end
+
+        # preconditioner = ColumnwiseLUPreconditioner(jvp!, rhs!.f!, Q,  nothing, FT(NaN), ) 
+        preconditioner_update!(jvp!, rhs!.f!, preconditioner, nothing, FT(NaN))
         
 
         residual_norm, linear_iterations =
-            donewtoniteration!(rhs!, jvp!, factors, Q, Qrhs, solver, args...)
+            donewtoniteration!(rhs!, jvp!, preconditioner, Q, Qrhs, solver, args...)
         @info "Linear solver converged in $linear_iterations iterations"
         iters += 1
+
+        preconditioner_counter_update!(preconditioner)
+
 
         if !isfinite(residual_norm)
             error("norm of residual is not finite after $iters iterations of `donewtoniteration!`")
@@ -205,7 +212,7 @@ settolerance!(
 
 doiteration!(
     linearoperator!,
-    factors,
+    preconditioner,
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
@@ -213,17 +220,16 @@ doiteration!(
     args...,
 ) = throw(MethodError(
     doiteration!,
-    (linearoperator!, factors, Q, Qrhs, solver, tolerance, args...),
+    (linearoperator!, preconditioner, Q, Qrhs, solver, tolerance, args...),
 ))
 
 initialize!(
     linearoperator!,
-    factors, 
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
     args...,
-) = throw(MethodError(initialize!, (linearoperator!, factors, Q, Qrhs, solver, args...)))
+) = throw(MethodError(initialize!, (linearoperator!, Q, Qrhs, solver, args...)))
 
 """
     prefactorize(linop!, linearsolver, args...)
@@ -253,7 +259,7 @@ jvp! = (ΔQ) -> F(Q + ΔQ)
 
 function linearsolve!(
     linearoperator!,
-    factors,
+    preconditioner,
     solver::AbstractIterativeSystemSolver,
     Q,
     Qrhs,
@@ -263,12 +269,12 @@ function linearsolve!(
 )
     converged = false
     iters = 0
-    converged, residual_norm0 = initialize!(linearoperator!, factors, Q, Qrhs, solver, args...)
+    converged, residual_norm0 = initialize!(linearoperator!, Q, Qrhs, solver, args...)
     converged && return iters
 
     while !converged && iters < max_iters
         converged, inner_iters, residual_norm =
-            doiteration!(linearoperator!, factors, Q, Qrhs, solver, args...)
+            doiteration!(linearoperator!, preconditioner, Q, Qrhs, solver, args...)
 
         iters += inner_iters
 
@@ -301,4 +307,5 @@ include("generalized_conjugate_residual_solver.jl")
 include("conjugate_gradient_solver.jl")
 include("columnwise_lu_solver.jl")
 include("batched_generalized_minimal_residual_solver.jl")
+include("preconditioner.jl")
 end

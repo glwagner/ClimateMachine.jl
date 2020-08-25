@@ -287,7 +287,6 @@ end
 
 function initialize!(
     linearoperator!,
-    factors,
     Q,
     Qrhs,
     solver::BatchedGeneralizedMinimalResidual,
@@ -401,7 +400,7 @@ function doiteration!(
 
         # PRECONDITIONER: batched_krylov_basis[j+1] =  J P^{-1}batched_krylov_basis[j]
         # set krylov_basis_prev = P^{-1}batched_krylov_basis[j]
-        preconditioner_solve!(factors,  krylov_basis_prev; temp = krylov_basis)
+        preconditioner_solve!(factors,  krylov_basis_prev)
 
         # Global operator application to get new Krylov basis vector
         linearoperator!(krylov_basis, krylov_basis_prev, args...)
@@ -470,7 +469,7 @@ function doiteration!(
     # Unwind reshaping and return solution in standard format
     convert_structure!(ΔQ, sols, backward_reshape, backward_permute)
     # PRECONDITIONER: Q ->  Pinv Q
-    preconditioner_solve!(factors, ΔQ; temp = krylov_basis)
+    preconditioner_solve!(factors, ΔQ)
     Q .+= ΔQ
 
 
@@ -480,7 +479,7 @@ function doiteration!(
 
     # if not converged, then restart
     converged ||
-    initialize!(linearoperator!, factors, Q, Qrhs, solver, args...; restart = true)
+    initialize!(linearoperator!, Q, Qrhs, solver, args...; restart = true)
 
     (converged, j, residual_norm)
 end
