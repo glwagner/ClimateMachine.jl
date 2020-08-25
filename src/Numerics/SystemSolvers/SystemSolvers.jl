@@ -164,7 +164,7 @@ doiteration!(
     Q,
     Qrhs,
     solver::AbstractIterativeSystemSolver,
-    tolerance,
+    threshold,
     args...,
 ) = throw(MethodError(
     doiteration!,

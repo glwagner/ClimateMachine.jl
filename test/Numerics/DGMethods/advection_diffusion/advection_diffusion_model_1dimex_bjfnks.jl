@@ -171,7 +171,6 @@ function run(
     linearsolver = BatchedGeneralizedMinimalResidual(
         dg,
         Q;
-        max_iteration = 30,
         atol = 1e-5,
         rtol = 1e-5,
     )
@@ -182,25 +181,10 @@ function run(
         tol = 1e-4,
     )
 
-    """
-    redesign
-    mutable struct NonLinBESolver{FT, FAC, NLS, LS, F} <: AbstractBackwardEulerSolver
-    α::FT
-    nlsolver::NLS
-    lsolver::LS
-    isadjustable::Bool
-    rhs!::F
-    end
-    # 1. do we need lsolver, rhs! they are in the nlsover
-    # 2. todo nonlinearsolve! inconsistency, also in besolver!(Qstages[istage], Qhat, α, p, stagetime)
-    # 3. function nonlinearsolve!(implicitoperator!,solver::AbstractNonlinearSolver,  do we need implicitoperator!? is it solver.f!
-    # 4. nlsolver.nlsolver should we change name of the first nlsolver to saying nlbesolver
-    """
-
     ode_solver = ARK548L2SA2KennedyCarpenter(
         dg,
         vdg,
-        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner_update_freq = 100),
+        NonLinearBackwardEulerSolver(nonlinearsolver; isadjustable = true, preconditioner_update_freq = 1000),
         Q;
         dt = dt,
         t0 = 0,

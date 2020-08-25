@@ -457,7 +457,7 @@ timeend = FT(1);
 given_Fourier = FT(0.5);
 Fourier_bound = given_Fourier * Δ^2 / max(m.αh, m.μh, m.νd);
 Courant_bound = FT(0.5) * Δ;
-dt = FT(10.0)*min(Fourier_bound, Courant_bound)
+dt = FT(50.0)*min(Fourier_bound, Courant_bound)
 
 # # Configure a `ClimateMachine` solver.
 
@@ -489,7 +489,7 @@ solver_config =
     linearsolver = BatchedGeneralizedMinimalResidual(
         dg,
         Q;
-        max_iteration = 30,
+        max_subspace_size = 30,
         atol = 1e-5,
         rtol = 1e-5,
         )
