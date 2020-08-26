@@ -6,14 +6,13 @@ mutable struct JacobianAction{FT, AT}
     rhs!
     ϵ::FT
     Q::AT
+    Qdq::AT
     cache_Fq::AT
     cache_Fqdq::AT
 end
 
 function JacobianAction(rhs!, Q, ϵ)
-    cache_Fq = similar(Q)
-    cache_Fqdq = similar(Q)
-    return JacobianAction(rhs!, ϵ, Q, cache_Fq, cache_Fqdq)
+    return JacobianAction(rhs!, ϵ, similar(Q), similar(Q), similar(Q), similar(Q))
 end
 
 
@@ -30,6 +29,7 @@ form on a vector `Δq` using the difference quotient:
 function (op::JacobianAction)(JΔQ, dQ, args...)
     rhs! = op.rhs!
     Q = op.Q
+    Qdq = op.Qdq
     ϵ = op.ϵ
     Fq = op.cache_Fq
     Fqdq = op.cache_Fqdq
@@ -46,11 +46,16 @@ function (op::JacobianAction)(JΔQ, dQ, args...)
     end
 
     β = √ϵ
-    e = factor * β * sum(abs.(Q)) + β
+    e = factor * β * norm(Q, 1, false) + β
+    
+    Qdq .= Q .+ e .* dQ
 
-    rhs!(Fqdq, Q .+ e .* dQ, args...)
+    rhs!(Fqdq, Qdq, args...)
 
     JΔQ .= (Fqdq .- Fq) ./ e
+
+    # @info norm(Q, false), norm(Qdq, false), norm(Fq, false), norm(Fqdq, false), e
+
 end
 
 function update_Q!(op::JacobianAction, Q, args...)
@@ -68,6 +73,7 @@ mutable struct BatchedJacobianFreeNewtonKrylovSolver{ET, TT, AT} <: AbstractNonl
     M::Int
     # Linear solver for the Jacobian system
     linearsolver
+    ΔQ::AT 
     # residual
     residual::AT
 end
@@ -81,7 +87,8 @@ function BatchedJacobianFreeNewtonKrylovSolver(
 )
     FT = eltype(Q)
     residual = similar(Q)
-    return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, residual)
+    ΔQ  = similar(Q)
+    return BatchedJacobianFreeNewtonKrylovSolver(FT(ϵ), FT(tol), M, linearsolver, ΔQ, residual)
 end
 
 function initialize!(
@@ -114,7 +121,7 @@ function donewtoniteration!(
 )
 
     FT = eltype(Q)
-    ΔQ = similar(Q)
+    ΔQ = solver.ΔQ
     ΔQ .= FT(0.0)
 
     #############################################################
@@ -166,8 +173,8 @@ function donewtoniteration!(
     rhs!(R, Q, args...)
     R .-= Qrhs
     resnorm = norm(R, weighted_norm)
-    # @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
+    @info "Nonlinear residual F(Q) after solving Jacobian system: $resnorm"
     #############################################################
-    
+    # error("stop")
     return resnorm, iters
 end
