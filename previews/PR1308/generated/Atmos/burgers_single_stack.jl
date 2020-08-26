@@ -108,7 +108,7 @@ vars_state(::BurgersEquation, ::GradientFlux, FT) = @vars(
     νd∇D::SMatrix{3, 3, FT, 9}
 );
 
-function burgers_nodal_init_state_auxiliary!(
+function nodal_init_state_auxiliary!(
     m::BurgersEquation,
     aux::Vars,
     tmp::Vars,
@@ -121,14 +121,16 @@ function init_state_auxiliary!(
     m::BurgersEquation,
     state_auxiliary::MPIStateArray,
     grid,
+    direction,
 )
-    init_aux!(m, m.orientation, state_auxiliary, grid)
+    init_aux!(m, m.orientation, state_auxiliary, grid, direction)
 
-    nodal_init_state_auxiliary!(
+    init_state_auxiliary!(
         m,
-        burgers_nodal_init_state_auxiliary!,
+        nodal_init_state_auxiliary!,
         state_auxiliary,
         grid,
+        direction,
     )
 end;
 
