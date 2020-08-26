@@ -357,7 +357,7 @@ function initialize!(
     residual_norm = maximum(resnorms)
     initial_residual_norm = maximum(initial_resnorms)
     converged =
-        check_convergence(residual_norm, initial_residual_norm, atol, rtol)
+        batched_check_convergence(residual_norm, initial_residual_norm, atol, rtol)
 
     converged, residual_norm
 end
@@ -445,7 +445,7 @@ function doiteration!(
         # should revisit the termination criteria.
         residual_norm = maximum(resnorms)
         converged =
-            check_convergence(residual_norm, initial_residual_norm, atol, rtol)
+            batched_check_convergence(residual_norm, initial_residual_norm, atol, rtol)
         if converged
             break
         end
@@ -667,7 +667,7 @@ end
 @inline convert_structure!(x::MPIStateArray, y, reshape_tuple, permute_tuple) =
     convert_structure!(x.realdata, y, reshape_tuple, permute_tuple)
 
-function check_convergence(residual_norm, initial_residual_norm, atol, rtol)
+function batched_check_convergence(residual_norm, initial_residual_norm, atol, rtol)
 
     converged = (residual_norm ≤ rtol*initial_residual_norm)
     return converged
