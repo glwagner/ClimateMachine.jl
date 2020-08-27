@@ -192,13 +192,9 @@ function donewtoniteration!(
     # R(Q) == 0, R = F(Q) - Qrhs, where F = rhs!
     # Compute right-hand side for Jacobian system:
     # J(Q)ΔQ = -R
-    # where R = Qrhs - F(Q)
+    # where R = Qrhs - F(Q), which is computed at the end of last step or in the initialize function
     R = solver.residual
-    # Computes F(Q) and stores in R
-    rhs!(R, Q, args...)
-    # Computes R = F(Q^n) - Qrhs
-    R .-= Qrhs
-    r0norm = norm(R, weighted_norm)
+    
         
     # R = F(Q^n) - Frhs
     # ΔQ = dF/dQ(Q^{n})⁻¹ (Frhs - F(Q^n)) = -dF/dQ(Q^{n})⁻¹ R 
@@ -214,7 +210,7 @@ function donewtoniteration!(
     # Newton correction Q^{n+1} = Q^n + dF/dQ(Q^{n})⁻¹ (Frhs - F(Q^n))
     Q .+= ΔQ
 
-    # TODO save the Reevaluate residual with new solution
+    # Compute residual norm and residual for next step
     rhs!(R, Q, args...)
     R .-= Qrhs
     resnorm = norm(R, weighted_norm)
