@@ -8,8 +8,8 @@ mutable struct JacobianAction{FT, AT}
     ϵ::FT
     Q::AT
     Qdq::AT
-    cache_Fq::AT
-    cache_Fqdq::AT
+    Fq::AT
+    Fqdq::AT
 end
 
 Solve for Frhs = F(q), the Jacobian action is computed 
@@ -23,8 +23,8 @@ rhs!           : nonlinear operator F(Q)
 ϵ::FT          : ϵ used for finite difference, e = e(Q, ϵ)
 Q::AT          : cache for Q
 Qdq::AT        : container for Q + ϵΔQ
-cache_Fq::AT   : cache for F(Q) 
-cache_Fqdq::AT : container for F(Q + ϵΔQ)
+Fq::AT         : cache for F(Q) 
+Fqdq::AT       : container for F(Q + ϵΔQ)
 """
 
 mutable struct JacobianAction{FT, AT}
@@ -32,8 +32,8 @@ mutable struct JacobianAction{FT, AT}
     ϵ::FT
     Q::AT
     Qdq::AT
-    cache_Fq::AT
-    cache_Fqdq::AT
+    Fq::AT
+    Fqdq::AT
 end
 
 function JacobianAction(rhs!, Q, ϵ)
@@ -58,8 +58,8 @@ function (op::JacobianAction)(JΔQ, dQ, args...)
     Q = op.Q
     Qdq = op.Qdq
     ϵ = op.ϵ
-    Fq = op.cache_Fq
-    Fqdq = op.cache_Fqdq
+    Fq = op.Fq
+    Fqdq = op.Fqdq
     
     FT = eltype(dQ)
     n = length(dQ)
@@ -88,7 +88,7 @@ update cached Q and F(Q) before each Newton iteration
 """
 function update_Q!(op::JacobianAction, Q, args...)
     op.Q .= Q
-    Fq = op.cache_Fq
+    Fq = op.Fq
 
     op.rhs!(Fq, Q, args...)
 end
