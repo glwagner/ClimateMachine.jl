@@ -12,8 +12,27 @@ run_box1D(
     0.0,
     1.0,
     1.0,
+    joinpath(output_dir, "box_1D_4_no_filter_upwind.svg"),
+    numerical_flux_first_order = RusanovNumericalFlux(),
+)
+
+run_box1D(
+    4,
+    0.0,
+    1.0,
+    1.0,
     joinpath(output_dir, "box_1D_4_tmar.svg");
     tmar_filter = true,
+)
+
+run_box1D(
+    4,
+    0.0,
+    1.0,
+    1.0,
+    joinpath(output_dir, "box_1D_4_tmar_upwind.svg");
+    tmar_filter = true,
+    numerical_flux_first_order = RusanovNumericalFlux(),
 )
 
 run_box1D(
