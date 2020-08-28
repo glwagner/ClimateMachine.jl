@@ -36,14 +36,13 @@ ClimateMachine.init()
 FT = Float32
 
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
-
 include(joinpath(
     clima_dir,
     "tutorials",
     "Land",
     "Soil",
     "interpolation_helper.jl",
-));
+))
 
 ν_ss_silt_array =
     FT.(
@@ -92,10 +91,9 @@ porosity = porosity_array[soil_type_index]
 
 κ_air = FT(K_therm(param_set)) # W/m/K
 
+ρp = FT(2700) # kg/m^3
 κ_solid =
     k_solid(ν_ss_om, ν_ss_quartz, ν_ss_minerals, κ_quartz, κ_minerals, κ_om)
-
-ρp = FT(2700) # kg/m^3
 κ_dry = k_dry(κ_solid, porosity, κ_air, ρp)
 κ_sat_frozen = ksat_frozen(κ_solid, porosity, κ_ice)
 κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq)
@@ -229,16 +227,19 @@ solver_config = ClimateMachine.SolverConfiguration(
 
 ClimateMachine.invoke!(solver_config)
 
-zres = 0.02
-
 aux = solver_config.dg.state_auxiliary
 
-Q = solver_config.Q
+zres = FT(0.02)
+boundaries = [
+    FT(0) FT(0) zmin
+    FT(1) FT(1) zmax
+]
+resolution = (FT(2), FT(2), zres)
+thegrid = solver_config.dg.grid
+intrp_brck = create_interpolation_grid(boundaries, resolution, thegrid)
 
-grads = solver_config.dg.state_gradient_flux
-
-iQ, iaux, igrads =
-    interpolate_output(solver_config.dg.grid, zmin, zmax, Q, aux, grads, zres)
+iaux = interpolate_variables([(aux)], intrp_brck)
+iaux = iaux[1]
 z_ind = varsindex(vars_state(m, Auxiliary(), FT), :z)
 iz = Array(iaux[:, z_ind, :][:])
 z = Array(aux[:, z_ind, :][:])
@@ -254,7 +255,6 @@ plot(
     title = "Heat transfer in sand",
 )
 plot!(T_init.(z), z, label = "Initial condition")
-
 filename = "bonan_heat_data.csv"
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 bonan_dataset = ArtifactWrapper(
@@ -270,10 +270,8 @@ data = joinpath(bonan_dataset_path, filename)
 ds_bonan = readdlm(data, ',')
 bonan_T = reverse(ds_bonan[:, 2])
 bonan_z = reverse(ds_bonan[:, 1])
-
 bonan_T_continuous = Spline1D(bonan_z, bonan_T)
 bonan_at_clima_z = bonan_T_continuous.(z)
-
 plot!(bonan_at_clima_z, z, label = "Bonan simulation")
 plot!(legend = :bottomleft)
 savefig("thermal_conductivity_comparison.png")

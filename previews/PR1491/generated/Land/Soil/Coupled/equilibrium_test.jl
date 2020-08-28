@@ -34,14 +34,13 @@ ClimateMachine.init()
 FT = Float64
 
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
-
 include(joinpath(
     clima_dir,
     "tutorials",
     "Land",
     "Soil",
     "interpolation_helper.jl",
-));
+))
 
 porosity = FT(0.395)
 
@@ -235,14 +234,20 @@ initial_state = Dict{String, Array}(
     "κ∇T_vert" => [nothing],
 )
 
-zres = 0.02
+zres = FT(0.02)
+boundaries = [
+    FT(0) FT(0) zmin
+    FT(1) FT(1) zmax
+]
+resolution = (FT(2), FT(2), zres)
+thegrid = solver_config.dg.grid
+intrp_brck = create_interpolation_grid(boundaries, resolution, thegrid)
 step = [1];
 callback = GenericCallbacks.EveryXSimulationTime(
     every_x_simulation_time,
 ) do (init = false)
     t = ODESolvers.gettime(solver_config.solver)
-    iQ, iaux, igrads =
-        interpolate_output(thegrid, zmin, zmax, Q, aux, grads, zres)
+    iQ, iaux, igrads = interpolate_variables((Q, aux, grads), intrp_brck)
     ϑ_l = iQ[:, ϑ_l_ind, :][:]
     T = iaux[:, T_ind, :][:]
     K∇h_vert = igrads[:, K∇h_vert_ind, :][:]
@@ -258,12 +263,12 @@ callback = GenericCallbacks.EveryXSimulationTime(
 
     step[1] += 1
     nothing
-end;
+end
 
 ClimateMachine.invoke!(solver_config; user_callbacks = (callback,))
 
 t = ODESolvers.gettime(solver_config.solver)
-iQ, iaux, igrads = interpolate_output(thegrid, zmin, zmax, Q, aux, grads, zres)
+iQ, iaux, igrads = interpolate_variables((Q, aux, grads), intrp_brck)
 
 ϑ_l = iQ[:, ϑ_l_ind, :][:]
 T = iaux[:, T_ind, :][:]
