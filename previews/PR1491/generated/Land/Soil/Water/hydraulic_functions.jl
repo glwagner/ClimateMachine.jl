@@ -4,18 +4,15 @@ using ClimateMachine
 using ClimateMachine.Land
 using ClimateMachine.Land.SoilWaterParameterizations
 
-FT = Float32
-
-ν = FT(0.41)
-Ksat = FT(4.42 / (3600 * 100))
+FT = Float32;
 
 vg_α = FT(7.5)
 vg_n = FT(1.89)
 hydraulics = vanGenuchten{FT}(α = vg_α, n = vg_n)
 
 ψ_sat = 0.09
-mval = 0.228
-hydraulics_bc = BrooksCorey{FT}(ψb = ψ_sat, m = mval)
+Mval = 0.228
+hydraulics_bc = BrooksCorey{FT}(ψb = ψ_sat, m = Mval);
 
 S_l = FT.(0.01:0.01:0.99)
 ψ = matric_potential.(Ref(hydraulics), S_l)
@@ -30,9 +27,11 @@ plot(
 plot!(S_l, log10.(-ψ_bc), label = "Brooks and Corey")
 savefig("./bc_vg_matric_potential.png")
 
+ν = FT(0.41)
+Ksat = FT(4.42 / (3600 * 100))
 moisture_choice = MoistureDependent{FT}()
 viscosity_choice = ConstantViscosity{FT}()
-impedance_choice = NoImpedance{FT}()
+impedance_choice = NoImpedance{FT}();
 
 T = FT(0.0)
 θ_ice = FT(0.0)

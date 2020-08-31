@@ -30,10 +30,10 @@ import ClimateMachine.DGMethods: calculate_dt
 using ClimateMachine.ArtifactWrappers
 
 struct EarthParameterSet <: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+const param_set = EarthParameterSet();
 
 ClimateMachine.init()
-FT = Float32
+FT = Float32;
 
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 include(joinpath(
@@ -42,7 +42,7 @@ include(joinpath(
     "Land",
     "Soil",
     "interpolation_helper.jl",
-))
+));
 
 ν_ss_silt_array =
     FT.(
@@ -72,31 +72,31 @@ porosity_array =
         0.426,
         0.492,
         0.482,
-    ])
+    ]);
 
 soil_type_index = 1
 ν_ss_minerals =
     ν_ss_clay_array[soil_type_index] + ν_ss_silt_array[soil_type_index]
 ν_ss_quartz = ν_ss_quartz_array[soil_type_index]
-porosity = porosity_array[soil_type_index]
+porosity = porosity_array[soil_type_index];
 
 ν_ss_om = FT(0.0)
-ν_ss_gravel = FT(0.0)
+ν_ss_gravel = FT(0.0);
 
 κ_quartz = FT(7.7) # W/m/K
 κ_minerals = FT(2.5) # W/m/K
 κ_om = FT(0.25) # W/m/K
 κ_liq = FT(0.57) # W/m/K
-κ_ice = FT(2.29) # W/m/K
+κ_ice = FT(2.29); # W/m/K
 
-κ_air = FT(K_therm(param_set)) # W/m/K
+κ_air = FT(K_therm(param_set)); # W/m/K
 
 ρp = FT(2700) # kg/m^3
 κ_solid =
     k_solid(ν_ss_om, ν_ss_quartz, ν_ss_minerals, κ_quartz, κ_minerals, κ_om)
 κ_dry = k_dry(κ_solid, porosity, κ_air, ρp)
 κ_sat_frozen = ksat_frozen(κ_solid, porosity, κ_ice)
-κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq)
+κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq);
 
 ρc_ds = FT((1 - porosity) * 1.926e06) # J/m^3/K
 
@@ -111,14 +111,14 @@ soil_param_functions = SoilParamFunctions{FT}(
     κ_sat_frozen = κ_sat_frozen,
     a = 0.24, # used in the Kersten number [3]
     b = 18.1, # used in the Kersten number [3]
-)
+);
 
 prescribed_augmented_liquid_fraction = FT(porosity * 0.8)
-prescribed_volumetric_ice_fraction = FT(0.0)
+prescribed_volumetric_ice_fraction = FT(0.0);
 
 heat_surface_state = (aux, t) -> eltype(aux)(288.15)
 heat_bottom_flux = (aux, t) -> eltype(aux)(0.0)
-T_init = (aux) -> eltype(aux)(275.15)
+T_init = (aux) -> eltype(aux)(275.15);
 
 function init_soil!(land, state, aux, coordinates, time)
     ϑ_l, θ_i = get_water_content(land.soil.water, aux, state, time)
@@ -132,7 +132,7 @@ function init_soil!(land, state, aux, coordinates, time)
         land.soil.heat.initialT(aux),
         land.param_set,
     )
-end
+end;
 
 soil_water_model = PrescribedWaterModel(
     (aux, t) -> prescribed_augmented_liquid_fraction,
@@ -159,7 +159,7 @@ m = LandModel(
     m_soil;
     source = sources,
     init_state_prognostic = init_soil!,
-)
+);
 
 N_poly = 1
 nelem_vert = 100
@@ -176,7 +176,7 @@ driver_config = ClimateMachine.SingleStackConfiguration(
     m;
     zmin = zmin,
     numerical_flux_first_order = CentralNumericalFluxFirstOrder(),
-)
+);
 
 function calculate_dt(dg, model::LandModel, Q, Courant_number, t, direction)
     Δt = one(eltype(Q))
@@ -215,7 +215,7 @@ end
 
 t0 = FT(0)
 timeend = FT(60 * 60 * 3)
-Courant_number = FT(0.5) # much bigger than this breaks
+Courant_number = FT(0.5) # much bigger than this leads to domain errors
 
 solver_config = ClimateMachine.SolverConfiguration(
     t0,
@@ -223,11 +223,11 @@ solver_config = ClimateMachine.SolverConfiguration(
     driver_config;
     Courant_number = Courant_number,
     CFL_direction = VerticalDirection(),
-)
+);
 
-ClimateMachine.invoke!(solver_config)
+ClimateMachine.invoke!(solver_config);
 
-aux = solver_config.dg.state_auxiliary
+aux = solver_config.dg.state_auxiliary;
 
 zres = FT(0.02)
 boundaries = [
@@ -236,7 +236,7 @@ boundaries = [
 ]
 resolution = (FT(2), FT(2), zres)
 thegrid = solver_config.dg.grid
-intrp_brck = create_interpolation_grid(boundaries, resolution, thegrid)
+intrp_brck = create_interpolation_grid(boundaries, resolution, thegrid);
 
 iaux = interpolate_variables([(aux)], intrp_brck)
 iaux = iaux[1]

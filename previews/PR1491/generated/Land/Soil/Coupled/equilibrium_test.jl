@@ -28,10 +28,10 @@ using ClimateMachine.BalanceLaws:
     BalanceLaw, Prognostic, Auxiliary, Gradient, GradientFlux, vars_state
 
 struct EarthParameterSet <: AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+const param_set = EarthParameterSet();
 
 ClimateMachine.init()
-FT = Float64
+FT = Float64;
 
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 include(joinpath(
@@ -40,37 +40,37 @@ include(joinpath(
     "Land",
     "Soil",
     "interpolation_helper.jl",
-))
+));
 
-porosity = FT(0.395)
+porosity = FT(0.395);
 
 ν_ss_quartz = FT(0.92)
 ν_ss_minerals = FT(0.08)
 ν_ss_om = FT(0.0)
-ν_ss_gravel = FT(0.0)
+ν_ss_gravel = FT(0.0);
 
 Ksat = FT(4.42 / 3600 / 100) # m/s
 S_s = FT(1e-3) #inverse meters
 vg_n = FT(1.89)
-vg_α = FT(7.5) # inverse meters
+vg_α = FT(7.5); # inverse meters
 
 κ_quartz = FT(7.7) # W/m/K
 κ_minerals = FT(2.5) # W/m/K
 κ_om = FT(0.25) # W/m/K
 κ_liq = FT(0.57) # W/m/K
-κ_ice = FT(2.29) # W/m/K
+κ_ice = FT(2.29); # W/m/K
 
-κ_air = FT(K_therm(param_set)) # W/m/K
+κ_air = FT(K_therm(param_set)); # W/m/K
 
-ρp = FT(2700) # kg/m^3
+ρp = FT(2700); # kg/m^3
 
 κ_solid =
     k_solid(ν_ss_om, ν_ss_quartz, ν_ss_minerals, κ_quartz, κ_minerals, κ_om)
 κ_dry = k_dry(κ_solid, porosity, κ_air, ρp)
 κ_sat_frozen = ksat_frozen(κ_solid, porosity, κ_ice)
-κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq)
+κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq);
 
-ρc_ds = FT((1 - porosity) * 1.926e06) # J/m^3/K
+ρc_ds = FT((1 - porosity) * 1.926e06); # J/m^3/K
 
 soil_param_functions = SoilParamFunctions{FT}(
     Ksat = Ksat,
@@ -85,7 +85,7 @@ soil_param_functions = SoilParamFunctions{FT}(
     κ_sat_frozen = κ_sat_frozen,
     a = 0.24, # used in the Kersten number [2]
     b = 18.1, # used in the Kersten number [2]
-)
+);
 
 function ϑ_l0(aux)
     FT = eltype(aux)
@@ -99,12 +99,12 @@ function ϑ_l0(aux)
         theta_min +
         (theta_max - theta_min) * exp(-(z - zmax) / (zmin - zmax) * c)
     return output
-end
+end;
 
 surface_water_flux = (aux, t) -> eltype(aux)(0.0)
 bottom_water_flux = (aux, t) -> eltype(aux)(0.0)
 surface_water_state = nothing
-bottom_water_state = nothing
+bottom_water_state = nothing;
 
 function T_init(aux)
     FT = eltype(aux)
@@ -116,12 +116,12 @@ function T_init(aux)
     z = aux.z
     output = T_min + (T_max - T_min) * exp(-(z - zmax) / (zmin - zmax) * c)
     return output
-end
+end;
 
 surface_heat_flux = (aux, t) -> eltype(aux)(0.0)
 bottom_heat_flux = (aux, t) -> eltype(aux)(0.0)
 surface_heat_state = nothing
-bottom_heat_state = nothing
+bottom_heat_state = nothing;
 
 function init_soil!(land, state, aux, coordinates, time)
     myFT = eltype(state)
@@ -140,7 +140,7 @@ function init_soil!(land, state, aux, coordinates, time)
         land.soil.heat.initialT(aux),
         land.param_set,
     )
-end
+end;
 
 soil_water_model = SoilWaterModel(
     FT;
@@ -156,7 +156,7 @@ soil_water_model = SoilWaterModel(
         surface_flux = surface_water_flux,
         bottom_flux = bottom_water_flux,
     ),
-)
+);
 
 soil_heat_model = SoilHeatModel(
     FT;
@@ -169,18 +169,18 @@ soil_heat_model = SoilHeatModel(
         surface_flux = surface_heat_flux,
         bottom_flux = bottom_heat_flux,
     ),
-)
+);
 
-m_soil = SoilModel(soil_param_functions, soil_water_model, soil_heat_model)
+m_soil = SoilModel(soil_param_functions, soil_water_model, soil_heat_model);
 
-sources = ()
+sources = ();
 
 m = LandModel(
     param_set,
     m_soil;
     source = sources,
     init_state_prognostic = init_soil!,
-)
+);
 
 N_poly = 1
 nelem_vert = 50
@@ -204,10 +204,10 @@ dt = FT(30.0)
 
 
 solver_config =
-    ClimateMachine.SolverConfiguration(t0, timeend, driver_config, ode_dt = dt)
+    ClimateMachine.SolverConfiguration(t0, timeend, driver_config, ode_dt = dt);
 
 const n_outputs = 4
-const every_x_simulation_time = ceil(Int, timeend / n_outputs)
+const every_x_simulation_time = ceil(Int, timeend / n_outputs);
 
 all_data = Dict([k => Dict() for k in 1:n_outputs]...)
 
@@ -224,7 +224,7 @@ aux = solver_config.dg.state_auxiliary;
 grads = solver_config.dg.state_gradient_flux
 ϑ_l = Q[:, ϑ_l_ind, :][:]
 z = aux[:, z_ind, :][:]
-T = aux[:, T_ind, :][:]
+T = aux[:, T_ind, :][:];
 
 initial_state = Dict{String, Array}(
     "t" => [t],
@@ -232,7 +232,7 @@ initial_state = Dict{String, Array}(
     "T" => T,
     "K∇h_vert" => [nothing],
     "κ∇T_vert" => [nothing],
-)
+);
 
 zres = FT(0.02)
 boundaries = [
@@ -263,9 +263,9 @@ callback = GenericCallbacks.EveryXSimulationTime(
 
     step[1] += 1
     nothing
-end
+end;
 
-ClimateMachine.invoke!(solver_config; user_callbacks = (callback,))
+ClimateMachine.invoke!(solver_config; user_callbacks = (callback,));
 
 t = ODESolvers.gettime(solver_config.solver)
 iQ, iaux, igrads = interpolate_variables((Q, aux, grads), intrp_brck)
