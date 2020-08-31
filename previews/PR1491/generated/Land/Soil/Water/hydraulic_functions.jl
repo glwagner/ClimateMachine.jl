@@ -47,7 +47,7 @@ K =
         Ref(ν),
         Ref(T),
         S_l,
-    )
+    );
 
 viscosity_choice_T = TemperatureDependentViscosity{FT}()
 T = FT(300.0)
@@ -132,7 +132,7 @@ K_constant =
         Ref(ν),
         Ref(T),
         S_l,
-    )
+    );
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 
