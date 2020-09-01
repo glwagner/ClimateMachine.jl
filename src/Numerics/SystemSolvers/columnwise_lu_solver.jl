@@ -297,31 +297,31 @@ function banded_matrix(
     single_column = false,
 )
 
-    bl = dg.balance_law
-    grid = dg.grid
-    topology = grid.topology
-    @assert isstacked(topology)
-    @assert typeof(dg.direction) <: VerticalDirection
+    # bl = dg.balance_law
+    # grid = dg.grid
+    # topology = grid.topology
+    # @assert isstacked(topology)
+    # @assert typeof(dg.direction) <: VerticalDirection
 
-    FT = eltype(Q.data)
-    device = array_device(Q)
+    # FT = eltype(Q.data)
+    # device = array_device(Q)
 
-    nstate = number_states(bl, Prognostic())
-    N = polynomialorder(grid)
-    Nq = N + 1
+    # nstate = number_states(bl, Prognostic())
+    # N = polynomialorder(grid)
+    # Nq = N + 1
 
-    # p is lower bandwidth
-    # q is upper bandwidth
-    eband = number_states(bl, GradientFlux()) == 0 ? 1 : 2
-    p = q = nstate * Nq * eband - 1
+    # # p is lower bandwidth
+    # # q is upper bandwidth
+    # eband = number_states(bl, GradientFlux()) == 0 ? 1 : 2
+    # p = q = nstate * Nq * eband - 1
 
-    nrealelem = length(topology.realelems)
-    nvertelem = topology.stacksize
-    nhorzelem = div(nrealelem, nvertelem)
+    # nrealelem = length(topology.realelems)
+    # nvertelem = topology.stacksize
+    # nhorzelem = div(nrealelem, nvertelem)
 
-    dim = dimensionality(grid)
+    # dim = dimensionality(grid)
 
-    Nqj = dim == 2 ? 1 : Nq
+    # Nqj = dim == 2 ? 1 : Nq
 
 
     A = empty_banded_matrix(
@@ -340,22 +340,22 @@ function banded_matrix(
     single_column = single_column,
     )
 
-    s1, s2 = 0.0, 0.0
-    for i1 = 1:Nq
-        for i2 = 1:Nqj
-            for i3 = 1: p + q + 1
-                for i4 = 1:Nq * nstate * nvertelem
-                    for i5 = 1:nhorzelem
-                        s1 += A[i1,i2,i3,i4,i5]
-                        s2 += A[i1,i2,i3,i4,i5]^2
-                    end
-                end
-            end
-        end
-    end
+    # s1, s2 = 0.0, 0.0
+    # for i1 = 1:Nq
+    #     for i2 = 1:Nqj
+    #         for i3 = 1: p + q + 1
+    #             for i4 = 1:Nq * nstate * nvertelem
+    #                 for i5 = 1:nhorzelem
+    #                     s1 += A[i1,i2,i3,i4,i5]
+    #                     s2 += A[i1,i2,i3,i4,i5]^2
+    #                 end
+    #             end
+    #         end
+    #     end
+    # end
 
-    @info "norm(A), sum(A) :", s2, s1
-    error("stop")
+    # @info "norm(A), sum(A) :", s2, s1
+    # error("stop")
 
     A
 end

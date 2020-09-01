@@ -54,13 +54,13 @@ function main()
 
     mpicomm = MPI.COMM_WORLD
 
-    # polynomialorder = 5
-    # numelem_horz = 10
-    # numelem_vert = 5
-
-    polynomialorder = 2
-    numelem_horz = 4
+    polynomialorder = 5
+    numelem_horz = 10
     numelem_vert = 5
+
+    # polynomialorder = 2
+    # numelem_horz = 4
+    # numelem_vert = 5
 
     timeend = 60 * 60
     # timeend = 33 * 60 * 60 # Full simulation
@@ -163,14 +163,14 @@ function run(
 
     Q = init_ode_state(dg, FT(0))
 
-    linearsolver = ManyColumnLU()
-    # linearsolver = BatchedGeneralizedMinimalResidual(
-    #     lineardg,
-    #     Q;
-    #     atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
-    #     rtol = 1.0e-8, #sqrt(eps(FT)) * 0.01,
-    #     # Maximum number of Krylov iterations in a column
-    # )
+    # linearsolver = ManyColumnLU()
+    linearsolver = BatchedGeneralizedMinimalResidual(
+        lineardg,
+        Q;
+        atol = 1.0e-6, #sqrt(eps(FT)) * 0.01,
+        rtol = 1.0e-8, #sqrt(eps(FT)) * 0.01,
+        # Maximum number of Krylov iterations in a column
+    )
    
 
     if split_explicit_implicit
@@ -186,7 +186,7 @@ function run(
     odesolver = ARK2GiraldoKellyConstantinescu(
         split_explicit_implicit ? rem_dg : dg,
         lineardg,
-        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner_update_freq = -100),
+        LinearBackwardEulerSolver(linearsolver; isadjustable = true, preconditioner_update_freq = 100),
         Q;
         dt = dt,
         t0 = 0,
