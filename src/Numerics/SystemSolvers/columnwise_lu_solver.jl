@@ -462,7 +462,7 @@ function update_banded_matrix!(
 
 
     # loop through all DOFs in a column and compute the matrix column
-    for ev in 1:nvertelem
+    for ev in 1:min(nvertelem, 2eband+1)
         for s in 1:nstate
             for k in 1:Nq
                 # Set a single 1 per column and rest 0
@@ -834,6 +834,8 @@ end
 
         Nq = N + 1
         Nqj = dim == 2 ? 1 : Nq
+
+        eband = number_states(bl, GradientFlux()) == 0 ? 1 : 2
     end
 
     ev, eh = @index(Group, NTuple)
@@ -843,7 +845,7 @@ end
         e = ev + (eh - 1) * nvertelem
         ijk = i + Nqj * (j - 1) + Nq * Nqj * (k - 1)
         @unroll for s in 1:nstate
-            if k == kin && s == sin && evin == ev
+            if k == kin && s == sin && ((ev - evin)%(2eband + 1) == 0)
                 Q[ijk, s, e] = 1
             else
                 Q[ijk, s, e] = 0
@@ -857,7 +859,7 @@ end
     dQ,
     kin,
     sin,
-    evin,
+    evin0,
     helems,
     vpelems,
 )
@@ -869,18 +871,24 @@ end
         nvertelem = num_vert_elem(A)
         p = lower_bandwidth(A)
         q = upper_bandwidth(A)
+
+        eband = elem_band(A)
         eshift = elem_band(A) + 1
 
         # sin, kin, evin are the state, vertical fod, and vert element we are
         # handling
 
-        # column index of matrix
-        jj = sin + (kin - 1) * nstate + (evin - 1) * nstate * Nq
+        
     end
 
     ep, eh = @index(Group, NTuple)
     ep = ep - eshift
     i, j, k = @index(Local, NTuple)
+
+    for evin in evin0:2eband+1:nvertelem
+
+    # column index of matrix
+    jj = sin + (kin - 1) * nstate + (evin - 1) * nstate * Nq
 
     # one thread is launch for dof that might contribute to column jj's band
     @inbounds begin
@@ -908,6 +916,7 @@ end
             end
         end
     end
+end
 end
 
 @kernel function kernel_banded_matrix_vector_product!(dQ, A, Q, helems, velems)
