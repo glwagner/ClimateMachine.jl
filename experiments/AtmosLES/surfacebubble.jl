@@ -101,7 +101,7 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
         turbulence = SmagorinskyLilly{FT}(C_smag),
         source = (Gravity(),),
         boundarycondition = (
-            AtmosBC(energy = PrescribedEnergyFlux(energyflux)),
+            AtmosBC(),#AtmosBC(energy = PrescribedEnergyFlux(energyflux)),
             AtmosBC(),
         ),
         moisture = EquilMoist{FT}(),
@@ -118,6 +118,7 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
         init_surfacebubble!,
         solver_type = ode_solver,
         model = model,
+	numerical_flux_first_order = RoeNumericalFlux(),
     )
 
     return config

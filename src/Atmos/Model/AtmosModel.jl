@@ -3,7 +3,7 @@ module Atmos
 export AtmosModel, AtmosAcousticLinearModel, AtmosAcousticGravityLinearModel, RoeNumericalFlux
 
 using CLIMAParameters
-using CLIMAParameters.Planet: grav, cp_d, R_v, LH_v0
+using CLIMAParameters.Planet: grav, cp_d, R_v, LH_v0, e_int_v0
 using CLIMAParameters.Atmos.SubgridScale: C_smag
 using DocStringExtensions
 using LinearAlgebra, StaticArrays
@@ -711,6 +711,10 @@ function init_state_prognostic!(
     m.init_state_prognostic(m, state, aux, coords, t, args...)
 end
 
+function RoeAverage(ρ⁻, ρ⁺, x⁻, x⁺)
+    return (sqrt(ρ⁻) * x⁻ + sqrt(ρ⁺) * x⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+end
+
 struct RoeNumericalFlux <: NumericalFluxFirstOrder end
 function numerical_flux_first_order!(
     numerical_flux::RoeNumericalFlux,
@@ -743,7 +747,7 @@ function numerical_flux_first_order!(
     _cv_d::FT = cv_d(param_set)
     _T_0::FT = T_0(param_set)
     γ::FT = cp_d(param_set) / cv_d(param_set)
-    _I_v0 = LH_v0(param_set) - R_v(param_set) * _T_0
+    _e_int_v0 = e_int_v0(param_set)
     Φ = gravitational_potential(balance_law, state_auxiliary⁻)
 
     ρ⁻ = state_conservative⁻.ρ
@@ -758,11 +762,14 @@ function numerical_flux_first_order!(
         state_conservative⁻,
         state_auxiliary⁻,
     )
-    h⁻ = (ρe⁻ + p⁻) / ρ⁻
+    h⁻ = total_specific_enthalpy(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
+    e⁻ = ρe⁻ / ρ⁻
+    qt⁻ = ρq_tot⁻ / ρ⁻
+    c⁻ = soundspeed(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
 
     ρ⁺ = state_conservative⁺.ρ
     ρu⁺ = state_conservative⁺.ρu
-    ρe⁺ = state_conservative⁺.ρe
+    ρe⁺ = state_conservative⁺.ρ
     ρq_tot⁺ = state_conservative⁺.moisture.ρq_tot
 
     u⁺ = ρu⁺ / ρ⁺
@@ -772,12 +779,28 @@ function numerical_flux_first_order!(
         state_conservative⁺,
         state_auxiliary⁺,
     )
-    h⁺ = (ρe⁺ + p⁺) / ρ⁺
-
-    ũ = (sqrt(ρ⁻) * u⁻ + sqrt(ρ⁺) * u⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    h̃ = (sqrt(ρ⁻) * h⁻ + sqrt(ρ⁺) * h⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
-    c̃ = sqrt((γ - 1) * (h̃ - ũ' * ũ / 2 - Φ + _cv_d * _T_0))
-
+    h⁺ = total_specific_enthalpy(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
+    e⁺ = ρe⁺ / ρ⁺
+    qt⁺ = ρq_tot⁺ / ρ⁺
+    c⁺ = soundspeed(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
+    ũ = RoeAverage(ρ⁻, ρ⁺, u⁻, u⁺)
+    e_tot = RoeAverage(ρ⁻, ρ⁺, e⁻, e⁺)
+    h̃ = RoeAverage(ρ⁻, ρ⁺, h⁻, h⁺)
+    qt = RoeAverage(ρ⁻, ρ⁺, qt⁻, qt⁺)
+    ρ = sqrt(ρ⁻ * ρ⁺)
+    e_int = internal_energy(ρ, ρ * e_tot, ρ * ũ, gravitational_potential(balance_law, state_auxiliary⁻)) 
+    ts = PhaseEquil(
+        param_set,
+        e_int,
+        ρ,
+        qt,
+        balance_law.moisture.maxiter,
+        balance_law.moisture.tolerance,
+    ) 
+    c̃ = sqrt(RoeAverage(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
+    _cv_m = cv_m(ts)
+    R_m = gas_constant_air(ts)
+    _cp_m = cp_m(ts)
     # chosen by fair dice roll
     # guaranteed to be random
     ω = FT(π) / 3
@@ -785,13 +808,27 @@ function numerical_flux_first_order!(
     random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
 
     # tangent space basis
-    τ1 = random_unit_vector × normal_vector
-    τ2 = τ1 × normal_vector
-
+    τ1 = circshift(normal_vector,1)#random_unit_vector × normal_vector
+    τ2 = circshift(normal_vector,2)#τ1 × normal_vector
+    #=found = 0
+    if (abs(τ1[1]) > 1e-12) 
+        t1 = SVector(1,0,0)
+        found = 1
+    end
+    if (abs(τ1[2]) > 1e-12 && found == 0) 
+        t1 = SVector(0,1,0)
+    elseif (abs(τ1[2])> 1e-12) 
+        t2 = SVector(0,1,0)
+    end
+    if (abs(τ1[3]) > 1e-12) 
+        t2 = SVector(0,0,1)
+    end 
+    τ1 = t1
+    τ2 = t2=#
     ũᵀn = ũ' * normal_vector
     ũc̃⁻ = ũ + c̃ * normal_vector
     ũc̃⁺ = ũ - c̃ * normal_vector
-
+    e_kin_pot = h̃ - _e_int_v0 * qt - _cp_m*c̃^2/R_m
     Λ = SDiagonal(
         abs(ũᵀn - c̃),
         abs(ũᵀn),
@@ -802,14 +839,13 @@ function numerical_flux_first_order!(
     )
 
     M = hcat(
-        SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃ - c̃ * ũᵀn, 0),
-        SVector(0, τ1[1], τ1[2], τ1[3], τ1' * ũ, 0),
+        SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃ - c̃ * ũᵀn, qt),
+	SVector(0, τ1[1], τ1[2], τ1[3], τ1' * ũ, 0),
         SVector(0, τ2[1], τ2[2], τ2[3], τ2' * ũ, 0),
-        SVector(1, ũ[1], ũ[2], ũ[3], ũ' * ũ / 2 - Φ + _T_0 * _cv_d, 0),
-        SVector(1, ũc̃⁻[1], ũc̃⁻[2], ũc̃⁻[3], h̃ + c̃ * ũᵀn, 0),
-	SVector(0, 0, 0, 0, - _I_v0, 1)
+	SVector(1, ũ[1], ũ[2], ũ[3], e_kin_pot, 0),#ũ' * ũ / 2 + Φ - _T_0 * _cv_m, 0),
+	SVector(1, ũc̃⁻[1], ũc̃⁻[2], ũc̃⁻[3], h̃ + c̃ * ũᵀn, qt),
+	SVector(0, 0, 0, 0, _e_int_v0, 1)
     )
-
     Δρ = ρ⁺ - ρ⁻
     Δρu = ρu⁺ - ρu⁻
     Δρe = ρe⁺ - ρe⁻

@@ -14,7 +14,7 @@ using CLIMAParameters.Planet: day
 using ..Courant
 using ..Checkpoint
 using ..DGMethods: courant
-using ..BalanceLaws: vars_state
+using ..BalanceLaws: vars_state, Prognostic, Auxiliary
 using ..Diagnostics
 using ..GenericCallbacks
 using ..MPIStateArrays
