@@ -150,11 +150,11 @@ soil_heat_model = SoilHeatModel(
         surface_flux = nothing,
         bottom_flux = heat_bottom_flux,
     ),
-)
+);
 
-m_soil = SoilModel(soil_param_functions, soil_water_model, soil_heat_model)
+m_soil = SoilModel(soil_param_functions, soil_water_model, soil_heat_model);
 
-sources = ()
+sources = ();
 
 m = LandModel(
     param_set,
