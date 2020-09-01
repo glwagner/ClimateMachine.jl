@@ -6,11 +6,11 @@ using ClimateMachine.Land.SoilWaterParameterizations
 
 FT = Float32;
 
-vg_α = FT(7.5)
+vg_α = FT(7.5) # m^-1
 vg_n = FT(1.89)
 hydraulics = vanGenuchten{FT}(α = vg_α, n = vg_n)
 
-ψ_sat = 0.09
+ψ_sat = 0.09 # m
 Mval = 0.228
 hydraulics_bc = BrooksCorey{FT}(ψb = ψ_sat, m = Mval);
 
@@ -34,7 +34,7 @@ viscosity_choice = ConstantViscosity{FT}()
 impedance_choice = NoImpedance{FT}();
 
 T = FT(0.0)
-θ_ice = FT(0.0)
+θ_i = FT(0.0)
 
 K =
     Ksat .*
@@ -43,7 +43,7 @@ K =
         Ref(viscosity_choice),
         Ref(moisture_choice),
         Ref(hydraulics),
-        Ref(θ_ice),
+        Ref(θ_i),
         Ref(ν),
         Ref(T),
         S_l,
@@ -58,22 +58,22 @@ K_T =
         Ref(viscosity_choice_T),
         Ref(moisture_choice),
         Ref(hydraulics),
-        Ref(θ_ice),
+        Ref(θ_i),
         Ref(ν),
         Ref(T),
         S_l,
     )
 ice_impedance_I = IceImpedance{FT}()
-θ_ice = FT(0.3)
+θ_i = FT(0.3)
 S_l_accounting_for_ice = FT.(0.01:0.01:0.7) # note that the total volumetric water fraction cannot exceed unity.
-K_ice =
+K_i =
     Ksat .*
     hydraulic_conductivity.(
         Ref(ice_impedance_I),
         Ref(viscosity_choice),
         Ref(moisture_choice),
         Ref(hydraulics),
-        Ref(θ_ice),
+        Ref(θ_i),
         Ref(ν),
         Ref(T),
         S_l_accounting_for_ice,
@@ -86,11 +86,11 @@ plot(
     label = "Base case",
 )
 plot!(S_l, log10.(K_T), label = "Temperature Dependent Viscosity")
-plot!(S_l_accounting_for_ice, log10.(K_ice), label = "Ice Impedance")
+plot!(S_l_accounting_for_ice, log10.(K_i), label = "Ice Impedance")
 savefig("./T_ice_K.png")
 
 T = FT(0.0)
-θ_ice = FT(0.0)
+θ_i = FT(0.0)
 
 K_bc =
     Ksat .*
@@ -99,7 +99,7 @@ K_bc =
         Ref(viscosity_choice),
         Ref(moisture_choice),
         Ref(hydraulics_bc),
-        Ref(θ_ice),
+        Ref(θ_i),
         Ref(ν),
         Ref(T),
         S_l,
@@ -128,7 +128,7 @@ K_constant =
         Ref(viscosity_choice),
         Ref(no_moisture_dependence),
         Ref(hydraulics),
-        Ref(θ_ice),
+        Ref(θ_i),
         Ref(ν),
         Ref(T),
         S_l,
