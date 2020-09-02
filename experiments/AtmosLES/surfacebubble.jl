@@ -101,7 +101,7 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
         turbulence = SmagorinskyLilly{FT}(C_smag),
         source = (Gravity(),),
         boundarycondition = (
-            AtmosBC(),#AtmosBC(energy = PrescribedEnergyFlux(energyflux)),
+            AtmosBC(energy = PrescribedEnergyFlux(energyflux)),
             AtmosBC(),
         ),
         moisture = EquilMoist{FT}(),

@@ -769,7 +769,7 @@ function numerical_flux_first_order!(
 
     ρ⁺ = state_conservative⁺.ρ
     ρu⁺ = state_conservative⁺.ρu
-    ρe⁺ = state_conservative⁺.ρ
+    ρe⁺ = state_conservative⁺.ρe
     ρq_tot⁺ = state_conservative⁺.moisture.ρq_tot
 
     u⁺ = ρu⁺ / ρ⁺
@@ -808,23 +808,8 @@ function numerical_flux_first_order!(
     random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
 
     # tangent space basis
-    τ1 = circshift(normal_vector,1)#random_unit_vector × normal_vector
-    τ2 = circshift(normal_vector,2)#τ1 × normal_vector
-    #=found = 0
-    if (abs(τ1[1]) > 1e-12) 
-        t1 = SVector(1,0,0)
-        found = 1
-    end
-    if (abs(τ1[2]) > 1e-12 && found == 0) 
-        t1 = SVector(0,1,0)
-    elseif (abs(τ1[2])> 1e-12) 
-        t2 = SVector(0,1,0)
-    end
-    if (abs(τ1[3]) > 1e-12) 
-        t2 = SVector(0,0,1)
-    end 
-    τ1 = t1
-    τ2 = t2=#
+    τ1 = random_unit_vector × normal_vector
+    τ2 = τ1 × normal_vector
     ũᵀn = ũ' * normal_vector
     ũc̃⁻ = ũ + c̃ * normal_vector
     ũc̃⁺ = ũ - c̃ * normal_vector
@@ -842,7 +827,7 @@ function numerical_flux_first_order!(
         SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃ - c̃ * ũᵀn, qt),
 	SVector(0, τ1[1], τ1[2], τ1[3], τ1' * ũ, 0),
         SVector(0, τ2[1], τ2[2], τ2[3], τ2' * ũ, 0),
-	SVector(1, ũ[1], ũ[2], ũ[3], e_kin_pot, 0),#ũ' * ũ / 2 + Φ - _T_0 * _cv_m, 0),
+	SVector(1, ũ[1], ũ[2], ũ[3], ũ' * ũ / 2 + Φ - _T_0 * _cv_m, 0),
 	SVector(1, ũc̃⁻[1], ũc̃⁻[2], ũc̃⁻[3], h̃ + c̃ * ũᵀn, qt),
 	SVector(0, 0, 0, 0, _e_int_v0, 1)
     )
