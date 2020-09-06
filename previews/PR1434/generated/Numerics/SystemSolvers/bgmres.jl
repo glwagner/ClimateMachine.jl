@@ -46,7 +46,7 @@ b = [b1 b2];
 
 x_exact = [x1_exact x2_exact];
 
-linearsolver = BatchedGeneralizedMinimalResidual(b);
+linearsolver = BatchedGeneralizedMinimalResidual(b, size(A1, 1), 2);
 
 x1 = ones(typeof(1.0), 3);
 x2 = ones(typeof(1.0), 3);
@@ -112,13 +112,12 @@ ArrayType = Array;
 
 gmres = BatchedGeneralizedMinimalResidual(
     b,
-    ArrayType = ArrayType,
-    m = tup[3] * tup[5] * tup[4],
-    n = tup[1] * tup[2] * tup[6],
-    reshape_tuple_f = reshape_tuple_f,
-    permute_tuple_f = permute_tuple_f,
-    atol = eps(Float64) * 10^2,
-    rtol = eps(Float64) * 10^2,
+    tup[3] * tup[5] * tup[4],
+    tup[1] * tup[2] * tup[6];
+    atol = eps(Float64) * 100,
+    rtol = eps(Float64) * 100,
+    forward_reshape = reshape_tuple_f,
+    forward_permute = permute_tuple_f,
 );
 
 iters = linearsolve!(
@@ -136,7 +135,7 @@ norm(x - x_exact) / norm(x_exact)
 columnwise_linear_operator!(x_exact, x);
 norm(x_exact - b) / norm(b)
 
-plot(log.(gmres.residual[1:iters, :]) / log(10));
+plot(log.(gmres.resnorms[:]) / log(10));
 plot!(legend = false, xlims = (1, iters), ylims = (-15, 2));
 plot!(ylabel = "log10 residual", xlabel = "iterations")
 
