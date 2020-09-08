@@ -305,7 +305,7 @@ function config_dycoms(FT, N, resolution, xmax, ymax, zmax)
         param_set;
         ref_state = ref_state,
         turbulence = Vreman{FT}(C_smag),
-        moisture = EquilMoist{FT}(maxiter = 4, tolerance = FT(1)),
+        moisture = EquilMoist{FT}(maxiter = 10, tolerance = FT(1)),
         radiation = radiation,
         source = source,
         boundarycondition = (
@@ -338,6 +338,7 @@ function config_dycoms(FT, N, resolution, xmax, ymax, zmax)
         init_dycoms!,
         solver_type = ode_solver,
         model = model,
+	numerical_flux_first_order = RoeNumericalFlux(),
     )
     return config
 end
@@ -364,13 +365,13 @@ function main()
     Δv = FT(20)
     resolution = (Δh, Δh, Δv)
 
-    xmax = FT(1000)
-    ymax = FT(1000)
+    xmax = FT(500)
+    ymax = FT(500)
     zmax = FT(1500)
 
     t0 = FT(0)
-    timeend = FT(100)
-    Cmax = FT(1.7)     # use this for single-rate explicit LSRK144
+    timeend = FT(14800)
+    Cmax = FT(1.0)     # use this for single-rate explicit LSRK144
 
     driver_config = config_dycoms(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(

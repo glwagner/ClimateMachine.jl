@@ -421,8 +421,10 @@ function config_bomex(FT, N, resolution, xmax, ymax, zmax)
     )
 
     # Choose default IMEX solver
-    ode_solver_type = ClimateMachine.IMEXSolverType()
-
+    #ode_solver_type = ClimateMachine.IMEXSolverType()
+    ode_solver_type = ClimateMachine.ExplicitSolverType(
+        solver_method = LSRK144NiegemannDiehlBusch,
+    )
     # Assemble model components
     model = AtmosModel{FT}(
         AtmosLESConfigType,
@@ -459,6 +461,7 @@ function config_bomex(FT, N, resolution, xmax, ymax, zmax)
         init_bomex!,
         solver_type = ode_solver_type,
         model = model,
+	numerical_flux_first_order = RoeNumericalFlux(),
     )
     return config
 end
@@ -492,17 +495,17 @@ function main()
     resolution = (Δh, Δh, Δv)
 
     # Prescribe domain parameters
-    xmax = FT(6400)
-    ymax = FT(6400)
+    xmax = FT(6000)
+    ymax = FT(6000)
     zmax = FT(3000)
 
     t0 = FT(0)
 
     # For a full-run, please set the timeend to 3600*6 seconds
     # For the test we set this to == 30 minutes
-    timeend = FT(1800)
-    #timeend = FT(3600 * 6)
-    CFLmax = FT(0.90)
+    #timeend = FT(1800)
+    timeend = FT(3600 * 6)
+    CFLmax = FT(1.1)
 
     driver_config = config_bomex(FT, N, resolution, xmax, ymax, zmax)
     solver_config = ClimateMachine.SolverConfiguration(

@@ -38,10 +38,10 @@ const param_set = EarthParameterSet()
 using MPI, Logging, StaticArrays, LinearAlgebra, Printf, Dates, Test
 
 if !@isdefined integration_testing
-    const integration_testing = parse(
+    const integration_testing = true#=parse(
         Bool,
         lowercase(get(ENV, "JULIA_CLIMA_INTEGRATION_TESTING", "false")),
-    )
+    )=#
 end
 
 const output_vtk = false

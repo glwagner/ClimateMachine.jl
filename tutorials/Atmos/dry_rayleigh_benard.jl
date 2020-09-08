@@ -29,7 +29,7 @@ using DocStringExtensions
 using Printf
 
 using ClimateMachine
-ClimateMachine.init()
+ClimateMachine.init(parse_clargs = true)
 using ClimateMachine.Atmos
 using ClimateMachine.Orientations
 using ClimateMachine.ConfigTypes
@@ -102,7 +102,7 @@ function init_problem!(bl, state, aux, (x, y, z), t)
     if z <= 100
         ρχ += FT(0.1) * (cospi(z / 2 / 100))^2
     end
-    state.tracers.ρχ = SVector{1, FT}(ρχ)
+    #state.tracers.ρχ = SVector{1, FT}(ρχ)
 end
 
 # Define problem configuration kernel
@@ -140,6 +140,7 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
         param_set;
         turbulence = Vreman(C_smag),
         source = (Gravity(),),
+	moisture = EquilMoist{FT}(),
         boundarycondition = (
             AtmosBC(
                 momentum = Impenetrable(NoSlip()),
@@ -150,7 +151,7 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
                 energy = PrescribedTemperature((state, aux, t) -> T_top),
             ),
         ),
-        tracers = NTracers{ntracers, FT}(δ_χ),
+        #tracers = NTracers{ntracers, FT}(δ_χ),
         init_state_prognostic = init_problem!,
         data_config = data_config,
     )
@@ -159,13 +160,15 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
     ## method. The option `splitting_type = ClimateMachine.SlowFastSplitting()`
     ## separates fast-slow modes by splitting away the acoustic waves and
     ## treating them via a sub-stepped explicit method.
-    ode_solver = ClimateMachine.MISSolverType(;
+    #=ode_solver = ClimateMachine.MISSolverType(;
         splitting_type = ClimateMachine.SlowFastSplitting(),
         mis_method = MIS2,
         fast_method = LSRK144NiegemannDiehlBusch,
         nsubsteps = 10,
+    )=#
+    ode_solver = ClimateMachine.ExplicitSolverType(
+        solver_method = LSRK144NiegemannDiehlBusch,
     )
-
     config = ClimateMachine.AtmosLESConfiguration(
         "DryRayleighBenardConvection",
         N,
@@ -177,6 +180,7 @@ function config_problem(FT, N, resolution, xmax, ymax, zmax)
         init_problem!,
         solver_type = ode_solver,
         model = model,
+	#numerical_flux_first_order = RoeNumericalFlux(),
     )
     return config
 end
@@ -202,7 +206,7 @@ function main()
     ## Time integrator setup
     t0 = FT(0)
     ## Courant number
-    CFLmax = FT(20)
+    CFLmax = FT(1.0)
     timeend = FT(1000)
     xmax, ymax, zmax = FT(250), FT(250), FT(500)
 

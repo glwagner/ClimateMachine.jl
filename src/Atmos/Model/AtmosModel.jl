@@ -788,7 +788,10 @@ function numerical_flux_first_order!(
     h̃ = RoeAverage(ρ⁻, ρ⁺, h⁻, h⁺)
     qt = RoeAverage(ρ⁻, ρ⁺, qt⁻, qt⁺)
     ρ = sqrt(ρ⁻ * ρ⁺)
-    e_int = internal_energy(ρ, ρ * e_tot, ρ * ũ, gravitational_potential(balance_law, state_auxiliary⁻)) 
+    e_int⁻ = internal_energy(ρ⁻, ρe⁻, ρu⁻, gravitational_potential(balance_law, state_auxiliary⁻))
+    e_int⁺ = internal_energy(ρ⁺, ρe⁺, ρu⁺, gravitational_potential(balance_law, state_auxiliary⁺))
+    e_int = RoeAverage(ρ⁻, ρ⁺, e_int⁻, e_int⁺)
+    #e_int = internal_energy(ρ, ρ * e_tot, ρ * ũ, gravitational_potential(balance_law, state_auxiliary⁻)) 
     ts = PhaseEquil(
         param_set,
         e_int,
@@ -796,11 +799,30 @@ function numerical_flux_first_order!(
         qt,
         balance_law.moisture.maxiter,
         balance_law.moisture.tolerance,
-    ) 
+    )
+    #=ts⁻ = PhaseEquil(
+        param_set,
+        e_int⁻,
+        ρ⁻,
+        qt⁻,
+        balance_law.moisture.maxiter,
+        balance_law.moisture.tolerance,
+    )
+    ts⁺ = PhaseEquil(
+        param_set,
+        e_int⁺,
+        ρ⁺,
+        qt⁺,
+        balance_law.moisture.maxiter,
+        balance_law.moisture.tolerance,
+    )=#
     c̃ = sqrt(RoeAverage(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
     _cv_m = cv_m(ts)
     R_m = gas_constant_air(ts)
     _cp_m = cp_m(ts)
+    #_cv_m⁻ = cv_m(ts⁻)
+    #_cv_m⁺ = cv_m(ts⁺)
+    #_cv_m = RoeAverage(ρ⁻, ρ⁺, _cv_m⁻, _cv_m⁺)    
     # chosen by fair dice roll
     # guaranteed to be random
     ω = FT(π) / 3

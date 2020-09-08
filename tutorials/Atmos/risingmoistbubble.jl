@@ -128,25 +128,31 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     zc::FT = 2000
     r = sqrt((x - xc)^2 + (z - zc)^2)
     rc::FT = 2000
-    θamplitude::FT = 2
-
+    θamplitude::FT = 4
+    qtot_amplitude::FT = 1e-3
     ## TODO: clean this up, or add convenience function:
     ## This is configured in the reference hydrostatic state
     θ_ref::FT = bl.ref_state.virtual_temperature_profile.T_surface
 
     ## Add the thermal perturbation:
+    Δqtot::FT = 0
     Δθ::FT = 0
     if r <= rc
         Δθ = θamplitude * (1.0 - r / rc)
+        Δqtot = qtot_amplitude * (1.0 - r / rc)
     end
 
     ## Compute perturbed thermodynamic state:
-    θ = θ_ref + Δθ                                      # potential temperature
-    π_exner = FT(1) - _grav / (c_p * θ) * z             # exner pressure
-    ρ = p0 / (R_gas * θ) * (π_exner)^(c_v / R_gas)      # density
+    θ = θ_ref + Δθ # potential temperature
+    q_pt = PhasePartition(Δqtot)
+    R_m = gas_constant_air(bl.param_set, q_pt)
+    _cp_m = cp_m(bl.param_set, q_pt)
+    _cv_m = cv_m(bl.param_set, q_pt)
+    π_exner = FT(1) - _grav / (_cp_m * θ) * z # exner pressure
+    ρ = p0 / (R_m * θ) * (π_exner)^(_cv_m / R_m)      # density
     T = θ * π_exner
     e_int = internal_energy(bl.param_set, T)
-    ts = PhaseDry(bl.param_set, e_int, ρ)
+    ts = PhaseEquil(bl.param_set, e_int, ρ, Δqtot)
     ρu = SVector(FT(0), FT(0), FT(0))                   # momentum
     ## State (prognostic) variable assignment
     e_kin = FT(0)                                       # kinetic energy
@@ -170,7 +176,7 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     state.ρ = ρ
     state.ρu = ρu
     state.ρe = ρe_tot
-    state.moisture.ρq_tot=FT(0)
+    state.moisture.ρq_tot = Δqtot
     #state.tracers.ρχ = ρχ
 end
 
