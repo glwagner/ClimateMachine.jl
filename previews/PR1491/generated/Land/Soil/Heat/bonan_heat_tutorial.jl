@@ -92,8 +92,7 @@ porosity = porosity_array[soil_type_index];
 κ_air = FT(K_therm(param_set)); # W/m/K
 
 ρp = FT(2700) # kg/m^3
-κ_solid =
-    k_solid(ν_ss_om, ν_ss_quartz, ν_ss_minerals, κ_quartz, κ_minerals, κ_om)
+κ_solid = k_solid(ν_ss_om, ν_ss_quartz, κ_quartz, κ_minerals, κ_om)
 κ_dry = k_dry(κ_solid, porosity, κ_air, ρp)
 κ_sat_frozen = ksat_frozen(κ_solid, porosity, κ_ice)
 κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq);
