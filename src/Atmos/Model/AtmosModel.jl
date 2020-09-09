@@ -828,22 +828,108 @@ function numerical_flux_first_order!(
     ω = FT(π) / 3
     δ = FT(π) / 5
     random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
-
     # tangent space basis
     τ1 = random_unit_vector × normal_vector
     τ2 = τ1 × normal_vector
+    ũᵀn⁻ = u⁻' * normal_vector
+    ũᵀn⁺ = u⁺' * normal_vector
     ũᵀn = ũ' * normal_vector
     ũc̃⁻ = ũ + c̃ * normal_vector
     ũc̃⁺ = ũ - c̃ * normal_vector
     e_kin_pot = h̃ - _e_int_v0 * qt - _cp_m*c̃^2/R_m
+    Mach⁺ = sqrt(u⁺' * u⁺) / c⁺
+    Mach⁻ = sqrt(u⁻' * u⁻) / c⁻
+    Mach = abs(ũᵀn) / c̃ #RoeAverage(ρ⁻, ρ⁺, Mach⁻, Mach⁺)
+    Mcut = FT(0)
+    c̃_LM = c̃ * min(Mach * sqrt(4 + (1 - Mach^2)^2) / (1 + Mach^2), 1) #max(min(Mach,1), Mcut)
+    #Standard Roe
     Λ = SDiagonal(
-        abs(ũᵀn - c̃),
+        abs(ũᵀn - c̃_LM),
         abs(ũᵀn),
         abs(ũᵀn),
         abs(ũᵀn),
-        abs(ũᵀn + c̃),
+        abs(ũᵀn + c̃_LM),
 	abs(ũᵀn),
     )
+    
+    #Harten Hyman Fix 1
+    #=Λ = SDiagonal(
+        max(abs(ũᵀn - c̃),max(0, ũᵀn - c̃ - (u⁻' * normal_vector - c⁻), u⁺' * normal_vector - c⁺ - (ũᵀn - c̃))),
+	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
+	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
+	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
+	max(abs(ũᵀn + c̃),max(0, ũᵀn + c̃ - (u⁻' * normal_vector + c⁻), u⁺' * normal_vector + c⁺ - (ũᵀn + c̃))),
+	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
+    )=#
+
+    #Pseudo LeVeque Fix
+    #=δ_L_1 = max(0, ũᵀn - ũᵀn⁻)
+    δ_L_2 = max(0, ũᵀn - c̃ - (ũᵀn⁻- c⁻))
+    δ_L_3 = max(0, ũᵀn + c̃ - (ũᵀn⁻+ c⁻))
+    δ_R_1 = max(0, ũᵀn⁺ - ũᵀn)
+    δ_R_2 = max(0, ũᵀn⁺ - c⁺ - (ũᵀn - c̃))
+    δ_R_3 = max(0, ũᵀn⁺ + c⁺ - (ũᵀn + c̃))
+    if (ũᵀn < δ_L_1 && ũᵀn > - δ_R_1)
+       qa1 =( (δ_L_1 - δ_R_1) * ũᵀn + 2 * δ_L_1 * δ_R_1) / (δ_L_1 + δ_R_1)
+    else
+       qa1 = abs(ũᵀn)
+    end
+    if (ũᵀn - c̃ < δ_L_2 && ũᵀn - c̃ > - δ_R_2)
+       qa2 =( (δ_L_2 - δ_R_2) * (ũᵀn - c̃) + 2 * δ_L_2 * δ_R_2) / (δ_L_2 + δ_R_2)
+    else
+       qa2 = abs(ũᵀn - c̃)
+    end
+    if (ũᵀn + c̃ < δ_L_3 && ũᵀn + c̃> - δ_R_3)
+       qa3 =( (δ_L_3 - δ_R_3) * (ũᵀn + c̃) + 2 * δ_R_3 * δ_R_3) / (δ_L_3 + δ_R_3)
+    else
+       qa3 = abs(ũᵀn + c̃)
+    end
+    Λ = SDiagonal(
+        qa2,
+        qa1,
+        qa1,
+        qa1,
+        qa3,
+        qa1,
+    )=#
+
+    #PosPreserving with LeVeque
+    #=b_L = min(ũᵀn - c̃, ũᵀn⁻- c⁻)
+    b_R = max(ũᵀn + c̃, ũᵀn⁺+ c⁺)
+    b⁻ = min(0,b_L)
+    b⁺ = max(0,b_R)
+    δ_L_1 = max(0, ũᵀn - b⁻)
+    δ_L_2 = max(0, ũᵀn - c̃ - b⁻)
+    δ_L_3 = max(0, ũᵀn + c̃ - b⁻)
+    δ_R_1 = max(0, b⁺ - ũᵀn)
+    δ_R_2 = max(0, b⁺ - (ũᵀn - c̃))
+    δ_R_3 = max(0, b⁺ - (ũᵀn + c̃))
+    if (ũᵀn < δ_L_1 && ũᵀn > - δ_R_1)
+       qa1 =( (δ_L_1 - δ_R_1) * ũᵀn + 2 * δ_L_1 * δ_R_1) / (δ_L_1 + δ_R_1)
+    else
+       qa1 = abs(ũᵀn)
+    end
+    if (ũᵀn - c̃ < δ_L_2 && ũᵀn - c̃ > - δ_R_2)
+       qa2 =( (δ_L_2 - δ_R_2) * (ũᵀn - c̃) + 2 * δ_L_2 * δ_R_2) / (δ_L_2 + δ_R_2)
+    else
+       qa2 = abs(ũᵀn - c̃)
+    end
+    if (ũᵀn + c̃ < δ_L_3 && ũᵀn + c̃> - δ_R_3)
+       qa3 =( (δ_L_3 - δ_R_3) * (ũᵀn + c̃) + 2 * δ_R_3 * δ_R_3) / (δ_L_3 + δ_R_3)
+    else
+       qa3 = abs(ũᵀn + c̃)
+    end
+    Λ = SDiagonal(
+        qa2,
+        qa1,
+        qa1,
+        qa1,
+        qa3,
+        qa1,
+    )=#
+
+
+ 
 
     M = hcat(
         SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃ - c̃ * ũᵀn, qt),

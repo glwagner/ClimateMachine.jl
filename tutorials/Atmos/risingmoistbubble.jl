@@ -124,9 +124,9 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
 
     ## Define bubble center and background potential temperature
     xc::FT = 5000
-    yc::FT = 1000
+    yc::FT = 5000
     zc::FT = 2000
-    r = sqrt((x - xc)^2 + (z - zc)^2)
+    r = sqrt((x - xc)^2 + (y - yc)^2 + (z - zc)^2)
     rc::FT = 2000
     θamplitude::FT = 4
     qtot_amplitude::FT = 1e-3
@@ -248,7 +248,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "DryRisingBubble",       # Problem title [String]
+        "moistRisingBubbleLM`",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -297,7 +297,7 @@ function main()
     Δv = FT(125)
     resolution = (Δh, Δh, Δv)
     xmax = FT(10000)
-    ymax = FT(500)
+    ymax = FT(10000)
     zmax = FT(10000)
     t0 = FT(0)
     timeend = FT(1000)
