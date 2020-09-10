@@ -126,9 +126,9 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     xc::FT = 5000
     yc::FT = 5000
     zc::FT = 2000
-    r = sqrt((x - xc)^2 + (y - yc)^2 + (z - zc)^2)
+    r = sqrt((x - xc)^2 + (z - zc)^2)
     rc::FT = 2000
-    θamplitude::FT = 4
+    θamplitude::FT = 2
     qtot_amplitude::FT = 1e-3
     ## TODO: clean this up, or add convenience function:
     ## This is configured in the reference hydrostatic state
@@ -151,7 +151,7 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     π_exner = FT(1) - _grav / (_cp_m * θ) * z # exner pressure
     ρ = p0 / (R_m * θ) * (π_exner)^(_cv_m / R_m)      # density
     T = θ * π_exner
-    e_int = internal_energy(bl.param_set, T)
+    e_int = internal_energy(bl.param_set, T, q_pt)
     ts = PhaseEquil(bl.param_set, e_int, ρ, Δqtot)
     ρu = SVector(FT(0), FT(0), FT(0))                   # momentum
     ## State (prognostic) variable assignment
@@ -176,7 +176,7 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     state.ρ = ρ
     state.ρu = ρu
     state.ρe = ρe_tot
-    state.moisture.ρq_tot = Δqtot
+    state.moisture.ρq_tot = ρ * Δqtot
     #state.tracers.ρχ = ρχ
 end
 
@@ -297,7 +297,7 @@ function main()
     Δv = FT(125)
     resolution = (Δh, Δh, Δv)
     xmax = FT(10000)
-    ymax = FT(10000)
+    ymax = FT(500)
     zmax = FT(10000)
     t0 = FT(0)
     timeend = FT(1000)

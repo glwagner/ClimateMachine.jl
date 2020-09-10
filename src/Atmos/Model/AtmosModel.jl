@@ -839,28 +839,28 @@ function numerical_flux_first_order!(
     e_kin_pot = h̃ - _e_int_v0 * qt - _cp_m*c̃^2/R_m
     Mach⁺ = sqrt(u⁺' * u⁺) / c⁺
     Mach⁻ = sqrt(u⁻' * u⁻) / c⁻
-    Mach = abs(ũᵀn) / c̃ #RoeAverage(ρ⁻, ρ⁺, Mach⁻, Mach⁺)
+    Mach = RoeAverage(ρ⁻, ρ⁺, Mach⁻, Mach⁺)
     Mcut = FT(0)
     c̃_LM = c̃ * min(Mach * sqrt(4 + (1 - Mach^2)^2) / (1 + Mach^2), 1) #max(min(Mach,1), Mcut)
     #Standard Roe
-    Λ = SDiagonal(
+    #=Λ = SDiagonal(
         abs(ũᵀn - c̃_LM),
         abs(ũᵀn),
         abs(ũᵀn),
         abs(ũᵀn),
         abs(ũᵀn + c̃_LM),
 	abs(ũᵀn),
-    )
+    )=#
     
     #Harten Hyman Fix 1
-    #=Λ = SDiagonal(
-        max(abs(ũᵀn - c̃),max(0, ũᵀn - c̃ - (u⁻' * normal_vector - c⁻), u⁺' * normal_vector - c⁺ - (ũᵀn - c̃))),
+    Λ = SDiagonal(
+        max(abs(ũᵀn - c̃_LM),max(0, ũᵀn - c̃_LM - (u⁻' * normal_vector - c⁻), u⁺' * normal_vector - c⁺ - (ũᵀn - c̃_LM))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
-	max(abs(ũᵀn + c̃),max(0, ũᵀn + c̃ - (u⁻' * normal_vector + c⁻), u⁺' * normal_vector + c⁺ - (ũᵀn + c̃))),
+	max(abs(ũᵀn + c̃_LM),max(0, ũᵀn + c̃_LM - (u⁻' * normal_vector + c⁻), u⁺' * normal_vector + c⁺ - (ũᵀn + c̃_LM))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
-    )=#
+    )
 
     #Pseudo LeVeque Fix
     #=δ_L_1 = max(0, ũᵀn - ũᵀn⁻)
