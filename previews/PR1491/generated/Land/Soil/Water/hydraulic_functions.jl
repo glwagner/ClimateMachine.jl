@@ -25,7 +25,7 @@ plot(
     label = "van Genuchten",
 )
 plot!(S_l, log10.(-ψ_bc), label = "Brooks and Corey")
-savefig("./bc_vg_matric_potential.png")
+savefig("bc_vg_matric_potential.png")
 
 ν = FT(0.41)
 Ksat = FT(4.42 / (3600 * 100))
@@ -87,7 +87,7 @@ plot(
 )
 plot!(S_l, log10.(K_T), label = "Temperature Dependent Viscosity")
 plot!(S_l_accounting_for_ice, log10.(K_i), label = "Ice Impedance")
-savefig("./T_ice_K.png")
+savefig("T_ice_K.png")
 
 T = FT(0.0)
 θ_i = FT(0.0)
@@ -118,7 +118,7 @@ plot!(
     ylabel = "Log10(K)",
     label = "Brooks and Corey",
 )
-savefig("./bc_vg_k.png")
+savefig("bc_vg_k.png")
 
 no_moisture_dependence = MoistureIndependent{FT}()
 K_constant =
