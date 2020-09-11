@@ -125,7 +125,7 @@ function init_risingbubble!(bl, state, aux, (x, y, z), t)
     ## Define bubble center and background potential temperature
     xc::FT = 5000
     yc::FT = 5000
-    zc::FT = 2000
+    zc::FT = 5000
     r = sqrt((x - xc)^2 + (z - zc)^2)
     rc::FT = 2000
     θamplitude::FT = 2
@@ -248,7 +248,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "moistRisingBubbleLM`",       # Problem title [String]
+        "moistRisingBubble_far_LM1_CFL",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -298,7 +298,7 @@ function main()
     resolution = (Δh, Δh, Δv)
     xmax = FT(10000)
     ymax = FT(500)
-    zmax = FT(10000)
+    zmax = FT(20000)
     t0 = FT(0)
     timeend = FT(1000)
 
@@ -306,7 +306,7 @@ function main()
     ## CFL = FT(15)
 
     ## Use up to 1.7 if ode_solver is the single rate LSRK144.
-    CFL = FT(1.7)
+    CFL = FT(1.6)
 
     ## Assign configurations so they can be passed to the `invoke!` function
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
