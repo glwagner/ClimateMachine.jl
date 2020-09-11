@@ -402,7 +402,6 @@ data_avg[1] = state_vars_avg
 data_nodal = Dict[Dict([k => Dict() for k in 0:n_outputs]...),]
 data_nodal[1] = state_vars
 
-step = [0];
 callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
     state_vars_var = get_horizontal_variance(
         driver_config.grid,
@@ -421,7 +420,6 @@ callback = GenericCallbacks.EveryXSimulationTime(every_x_simulation_time) do
         i = 1,
         j = 1,
     )
-    step[1] += 1
     push!(data_var, state_vars_var)
     push!(data_avg, state_vars_avg)
     push!(data_nodal, state_vars)
