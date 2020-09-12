@@ -83,7 +83,7 @@ function held_suarez_forcing!(
     source.ρe -= k_T * ρ * _cv_d * (T - T_equil)
 end;
 
-function init_heldsuarez!(balance_law, state, aux, coordinates, time)
+function init_heldsuarez!(problem, balance_law, state, aux, coordinates, time)
     FT = eltype(state)
 
     # Set initial state to reference state with random perturbation
@@ -115,12 +115,12 @@ hyperdiffusion_model = DryBiharmonic(FT(4 * 3600));
 model = AtmosModel{FT}(
     AtmosGCMConfigType,
     param_set;
+    init_state_prognostic = init_heldsuarez!,
     ref_state = ref_state,
     turbulence = turbulence_model,
     hyperdiffusion = hyperdiffusion_model,
     moisture = DryModel(),
     source = (Gravity(), Coriolis(), held_suarez_forcing!, sponge),
-    init_state_prognostic = init_heldsuarez!,
 );
 
 poly_order = 5;                        ## discontinuous Galerkin polynomial order

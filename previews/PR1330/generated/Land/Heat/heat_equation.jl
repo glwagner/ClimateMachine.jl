@@ -31,9 +31,8 @@ import ClimateMachine.BalanceLaws:
     flux_first_order!,
     compute_gradient_argument!,
     compute_gradient_flux!,
-    update_auxiliary_state!,
     nodal_update_auxiliary_state!,
-    init_state_auxiliary!,
+    nodal_init_state_auxiliary!,
     init_state_prognostic!,
     boundary_state!
 
@@ -72,7 +71,7 @@ vars_state(::HeatModel, ::Gradient, FT) = @vars(ρcT::FT);
 
 vars_state(::HeatModel, ::GradientFlux, FT) = @vars(α∇ρcT::SVector{3, FT});
 
-function heat_eq_nodal_init_state_auxiliary!(
+function nodal_init_state_auxiliary!(
     m::HeatModel,
     aux::Vars,
     tmp::Vars,
@@ -81,19 +80,6 @@ function heat_eq_nodal_init_state_auxiliary!(
     aux.z = geom.coord[3]
     aux.T = m.initialT
 end;
-
-function init_state_auxiliary!(
-    m::HeatModel,
-    state_auxiliary::MPIStateArray,
-    grid,
-)
-    nodal_init_state_auxiliary!(
-        m,
-        heat_eq_nodal_init_state_auxiliary!,
-        state_auxiliary,
-        grid,
-    )
-end
 
 function init_state_prognostic!(
     m::HeatModel,
@@ -105,17 +91,7 @@ function init_state_prognostic!(
     state.ρcT = m.ρc * aux.T
 end;
 
-function update_auxiliary_state!(
-    dg::DGModel,
-    m::HeatModel,
-    Q::MPIStateArray,
-    t::Real,
-    elems::UnitRange,
-)
-    nodal_update_auxiliary_state!(heat_eq_nodal_update_aux!, dg, m, Q, t, elems)
-end;
-
-function heat_eq_nodal_update_aux!(
+function nodal_update_auxiliary_state!(
     m::HeatModel,
     state::Vars,
     aux::Vars,
