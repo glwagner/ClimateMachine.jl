@@ -248,7 +248,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "moistRisingBubble_far_LM1_CFL",       # Problem title [String]
+        "moistRisingBubble_sound_type2_LM",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]

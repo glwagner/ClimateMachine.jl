@@ -816,10 +816,12 @@ function numerical_flux_first_order!(
         balance_law.moisture.maxiter,
         balance_law.moisture.tolerance,
     )=#
-    c̃ = sqrt(RoeAverage(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
+    #c̃ = sqrt(RoeAverage(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
     _cv_m = cv_m(ts)
     R_m = gas_constant_air(ts)
     _cp_m = cp_m(ts)
+    gamma = _cp_m / _cv_m
+    c̃ = sqrt((gamma - 1) * (h̃ - 0.5 * ũ' * ũ))
     #_cv_m⁻ = cv_m(ts⁻)
     #_cv_m⁺ = cv_m(ts⁺)
     #_cv_m = RoeAverage(ρ⁻, ρ⁺, _cv_m⁻, _cv_m⁺)    
