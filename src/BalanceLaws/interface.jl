@@ -3,23 +3,20 @@
 """
     BalanceLaw
 
-An abstract type representing a PDE balance law of the form
-
-elements for balance laws of the form
+An abstract type representing a PDE balance law of the form:
 
 ```math
 q_{,t} + Σ_{i=1,...d} F_{i,i} = s
 ```
 
-Subtypes `L` should define the methods below
+Subtypes `L` should define the methods below.
 """
 abstract type BalanceLaw end # PDE part
 
 """
     vars_state(::L, ::AbstractStateType, FT)
 
-a tuple of symbols containing the state variables
-given a float type `FT`.
+A tuple of symbols containing the state variables given a float type `FT`.
 """
 function vars_state end
 
@@ -28,26 +25,35 @@ vars_state(::BalanceLaw, ::AbstractStateType, FT) = @vars()
 
 """
     init_state_prognostic!(
-      ::L,
-      state_prognostic::Vars,
-      state_auxiliary::Vars,
-      coords,
-      args...)
+        ::L,
+        state_prognostic::Vars,
+        state_auxiliary::Vars,
+        coords,
+        args...,
+    )
 
-Initialize the conservative state variables at ``t = 0``
+Initialize the prognostic state variables at ``t = 0``.
 """
 function init_state_prognostic! end
 
 """
     init_state_auxiliary!(
-      ::L,
-      state_auxiliary::Vars,
-      coords,
-      args...)
+        ::L,
+        state_auxiliary::Vars,
+        geom::LocalGeometry,
+    )
 
-Initialize the auxiliary state, at ``t = 0``
+Initialize the auxiliary state, at ``t = 0``.
 """
 function init_state_auxiliary! end
+
+"""
+    nodal_init_state_auxiliary!()
+
+Nodal initialization the auxiliary state variables at ``t = 0``
+"""
+function nodal_init_state_auxiliary! end
+
 
 """
     flux_first_order!(
@@ -59,7 +65,7 @@ function init_state_auxiliary! end
         directions
     )
 
-Compute first-order flux terms in balance law equation
+Compute first-order flux terms in balance law equation.
 """
 function flux_first_order! end
 
@@ -74,7 +80,7 @@ function flux_first_order! end
         t::Real
     )
 
-Compute second-order flux terms in balance law equation
+Compute second-order flux terms in balance law equation.
 """
 function flux_second_order! end
 
@@ -88,7 +94,7 @@ function flux_second_order! end
         t::Real
     )
 
-Compute non-conservative source terms in balance law equation
+Compute non-conservative source terms in balance law equation.
 """
 function source! end
 
@@ -101,7 +107,8 @@ function source! end
         t::Real
     )
 
-transformation of state variables to variables of which gradients are computed
+Transformation of state variables to variables of which gradients are
+computed.
 """
 compute_gradient_argument!(::BalanceLaw, args...) = nothing
 
@@ -114,7 +121,7 @@ compute_gradient_argument!(::BalanceLaw, args...) = nothing
         t::Real
     )
 
-transformation of gradients to the diffusive variables
+Transformation of gradients to the diffusive variables.
 """
 compute_gradient_flux!(::BalanceLaw, args...) = nothing
 
@@ -127,7 +134,7 @@ compute_gradient_flux!(::BalanceLaw, args...) = nothing
         t::Real
     )
 
-transformation of laplacian gradients to the hyperdiffusive variables
+Transformation of Laplacian gradients to the hyperdiffusive variables.
 """
 function transform_post_gradient_laplacian! end
 
@@ -141,7 +148,7 @@ function transform_post_gradient_laplacian! end
         direction
     )
 
-wavespeed
+Wavespeed.
 """
 function wavespeed end
 
@@ -215,21 +222,23 @@ function nodal_update_auxiliary_state! end
     update_auxiliary_state_gradient!
 
 
-Update the auxiliary state gradient variables
+Update the auxiliary state gradient variables.
 """
 function update_auxiliary_state_gradient! end
 
 """
     integral_load_auxiliary_state!
 
-Specify how to compute integrands. Can be functions of the conservative state and auxiliary variables.
+Specify how to compute integrands. Can be functions of the prognostic
+state and auxiliary variables.
 """
 function integral_load_auxiliary_state! end
 
 """
     integral_set_auxiliary_state!
 
-Specify which auxiliary variables are used to store the output of the integrals.
+Specify which auxiliary variables are used to store the output of the
+integrals.
 """
 function integral_set_auxiliary_state! end
 
@@ -250,7 +259,8 @@ function reverse_integral_load_auxiliary_state! end
 """
     reverse_integral_set_auxiliary_state!
 
-Specify which auxiliary variables are used to store the output of the reversed integrals.
+Specify which auxiliary variables are used to store the output of the
+reversed integrals.
 """
 function reverse_integral_set_auxiliary_state! end
 

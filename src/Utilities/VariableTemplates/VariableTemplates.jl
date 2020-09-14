@@ -47,12 +47,22 @@ function varsindex(::Type{S}, insym::Symbol) where {S <: NamedTuple}
     end
     error("symbol '$insym' not found")
 end
+unval(::Val{i}) where {i} = i
 Base.@propagate_inbounds function varsindex(
     ::Type{S},
-    sym::Symbol,
-    rest::Symbol...,
-) where {S <: NamedTuple}
-    varsindex(S, sym)[varsindex(fieldtype(S, sym), rest...)]
+    sym,
+    rest...,
+) where {S <: Union{NamedTuple, Tuple}}
+    if sym isa Symbol
+        vi = varsindex(fieldtype(S, sym), rest...)
+        return varsindex(S, sym)[vi]
+    else
+        i = unval(sym)
+        et = eltype(S)
+        offset = (i - 1) * varsize(et)
+        vi = varsindex(et, rest...)
+        return (vi.start + offset):(vi.stop + offset)
+    end
 end
 
 """
@@ -95,6 +105,7 @@ varsize(::Type{NamedTuple{(), Tuple{}}}) = 0
 varsize(::Type{SVector{N, T}}) where {N, T <: Real} = N
 
 include("var_names.jl")
+include("flattened_tup_chain.jl")
 
 # TODO: should be possible to get rid of @generated
 @generated function varsize(::Type{S}) where {S}
@@ -135,22 +146,22 @@ struct SetVarError <: Exception
     sym::Symbol
 end
 
+abstract type AbstractVars{S, A, offset} end
 
 """
     Vars{S,A,offset}(array::A)
 
 Defines property overloading for `array` using the type `S` as a template. `offset` is used to shift the starting element of the array.
 """
-struct Vars{S, A, offset}
+struct Vars{S, A, offset} <: AbstractVars{S, A, offset}
     array::A
 end
 Vars{S}(array) where {S} = Vars{S, typeof(array), 0}(array)
 
-Base.parent(v::Vars) = getfield(v, :array)
-Base.eltype(v::Vars) = eltype(parent(v))
-Base.propertynames(::Vars{S}) where {S} = fieldnames(S)
-Base.similar(v::Vars{S, A, offset}) where {S, A, offset} =
-    Vars{S, A, offset}(similar(parent(v)))
+Base.parent(v::AbstractVars) = getfield(v, :array)
+Base.eltype(v::AbstractVars) = eltype(parent(v))
+Base.propertynames(::AbstractVars{S}) where {S} = fieldnames(S)
+Base.similar(v::AbstractVars) = typeof(v)(similar(parent(v)))
 
 @generated function Base.getproperty(
     v::Vars{S, A, offset},
@@ -232,16 +243,10 @@ end
 
 Defines property overloading along slices of the second dimension of `array` using the type `S` as a template. `offset` is used to shift the starting element of the array.
 """
-struct Grad{S, A, offset}
+struct Grad{S, A, offset} <: AbstractVars{S, A, offset}
     array::A
 end
 Grad{S}(array) where {S} = Grad{S, typeof(array), 0}(array)
-
-Base.parent(g::Grad) = getfield(g, :array)
-Base.eltype(g::Grad) = eltype(parent(g))
-Base.propertynames(::Grad{S}) where {S} = fieldnames(S)
-Base.similar(g::Grad{S, A, offset}) where {S, A, offset} =
-    Grad{S, A, offset}(similar(parent(g)))
 
 @generated function Base.getproperty(
     v::Grad{S, A, offset},
@@ -286,7 +291,7 @@ end
 @generated function Base.setproperty!(
     v::Grad{S, A, offset},
     sym::Symbol,
-    val,
+    val::AbstractArray,
 ) where {S, A, offset}
     if A <: SubArray
         M = size(fieldtype(A, 1), 1)
@@ -300,11 +305,18 @@ end
     for k in fieldnames(S)
         T = fieldtype(S, k)
         if T <: Real
-            retexpr = :(array[:, $(offset + 1)] .= val)
+            retexpr = :(array[:, $(offset + 1)] = val)
             offset += 1
         elseif T <: StaticArray
             N = length(T)
-            retexpr = :(array[:, ($(offset + 1)):($(offset + N))] .= val)
+            retexpr = :(
+                array[
+                    :,
+                    # static range is used here to force dispatch to
+                    # StaticArrays setindex! because generic setindex! is slow
+                    StaticArrays.SUnitRange($(offset + 1), $(offset + N)),
+                ] = val
+            )
             offset += N
         else
             offset += varsize(T)
@@ -320,22 +332,99 @@ end
     expr
 end
 
+export unroll_map, @unroll_map
+"""
+    @unroll_map(f::F, N::Int, args...) where {F}
+    unroll_map(f::F, N::Int, args...) where {F}
 
-@inline function Base.getindex(
-    v::Vars{NTuple{N, T}, A, offset},
-    i,
-) where {N, T, A, offset}
-    # 1 <= i <= N
-    array = parent(v)
-    return Vars{T, A, offset + (i - 1) * varsize(T)}(array)
+Unroll N-expressions and wrap arguments in `Val`.
+"""
+@generated function unroll_map(f::F, ::Val{N}, args...) where {F, N}
+    quote
+        Base.@_inline_meta
+        Base.Cartesian.@nexprs $N i -> f(Val(i), args...)
+    end
 end
-@inline function Base.getindex(
-    v::Grad{NTuple{N, T}, A, offset},
-    i,
-) where {N, T, A, offset}
+macro unroll_map(func, N, args...)
+    @assert func.head == :(->)
+    body = func.args[2]
+    pushfirst!(body.args, :(Base.@_inline_meta))
+    quote
+        $unroll_map($(esc(func)), Val($(esc(N))), $(esc(args))...)
+    end
+end
+
+export vuntuple
+"""
+    vuntuple(f::F, N::Int)
+
+Val-Unroll ntuple: wrap `ntuple`
+arguments in `Val` for unrolling.
+"""
+vuntuple(f::F, N::Int) where {F} = ntuple(i -> f(Val(i)), Val(N))
+
+# Inside unroll_map expressions, all indexes `i`
+# are wrapped in `Val`, so we must redirect
+# these methods:
+Base.getindex(t::Tuple, ::Val{i}) where {i} = Base.getindex(t, i)
+Base.getindex(a::SArray, ::Val{i}) where {i} = Base.getindex(a, i)
+
+Base.@propagate_inbounds function Base.getindex(
+    v::AbstractVars{NTuple{N, T}, A, offset},
+    ::Val{i},
+) where {N, T, A, offset, i}
     # 1 <= i <= N
     array = parent(v)
-    return Grad{T, A, offset + (i - 1) * varsize(T)}(array)
+    if v isa Vars
+        return Vars{T, A, offset + (i - 1) * varsize(T)}(array)
+    else
+        return Grad{T, A, offset + (i - 1) * varsize(T)}(array)
+    end
+end
+
+Base.@propagate_inbounds function Base.getproperty(
+    v::AbstractVars,
+    tup_chain::Tuple{S},
+) where {S <: Symbol}
+    return Base.getproperty(v, tup_chain[1])
+end
+
+Base.@propagate_inbounds function Base.getindex(
+    v::AbstractVars,
+    tup_chain::Tuple{S},
+) where {S <: Int}
+    return Base.getindex(v, Val(tup_chain[1]))
+end
+
+Base.@propagate_inbounds function Base.getproperty(
+    v::AbstractVars,
+    tup_chain::Tuple,
+)
+    if tup_chain[1] isa Int
+        p = Base.getindex(v, Val(tup_chain[1]))
+    else
+        p = Base.getproperty(v, tup_chain[1])
+    end
+    if tup_chain[2] isa Int
+        return Base.getindex(p, tup_chain[2:end])
+    else
+        return Base.getproperty(p, tup_chain[2:end])
+    end
+end
+Base.@propagate_inbounds function Base.getindex(
+    v::AbstractVars,
+    tup_chain::Tuple,
+)
+    if tup_chain[1] isa Int
+        p = Base.getindex(v, Val(tup_chain[1]))
+    else
+        p = Base.getproperty(v, tup_chain[1])
+    end
+    if tup_chain[2] isa Int
+        return Base.getindex(p, tup_chain[2:end])
+    else
+        return Base.getproperty(p, tup_chain[2:end])
+    end
 end
 
 end # module

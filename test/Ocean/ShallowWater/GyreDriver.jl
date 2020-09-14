@@ -1,6 +1,30 @@
-include("GyreInABox.jl")
-
+using MPI
 using Test
+using ClimateMachine
+using ClimateMachine.Mesh.Topologies
+using ClimateMachine.Mesh.Grids
+using ClimateMachine.DGMethods
+using ClimateMachine.DGMethods.NumericalFluxes
+using ClimateMachine.MPIStateArrays
+using ClimateMachine.ODESolvers
+using ClimateMachine.GenericCallbacks
+using ClimateMachine.VariableTemplates: flattenednames
+using ClimateMachine.BalanceLaws
+using ClimateMachine.Ocean.ShallowWater
+using ClimateMachine.Ocean.ShallowWater:
+    TurbulenceClosure, LinearDrag, ConstantViscosity
+using ClimateMachine.Ocean
+using ClimateMachine.Ocean.OceanProblems
+
+using LinearAlgebra
+using StaticArrays
+using Logging, Printf, Dates
+using ClimateMachine.VTK
+
+using CLIMAParameters
+using CLIMAParameters.Planet: grav
+struct EarthParameterSet <: AbstractEarthParameterSet end
+const param_set = EarthParameterSet()
 
 if !isempty(ARGS)
     stommel = Bool(parse(Int, ARGS[1]))
@@ -44,7 +68,14 @@ end
 outname = "vtk_new_dt_" * gyre * "_" * advec
 
 function setup_model(FT, stommel, linear, τₒ, fₒ, β, γ, ν, Lˣ, Lʸ, H)
-    problem = GyreInABox{FT}(τₒ, fₒ, β, Lˣ, Lʸ, H)
+    problem = HomogeneousBox{FT}(
+        Lˣ,
+        Lʸ,
+        H,
+        τₒ = τₒ,
+        BC = OceanBC(Impenetrable(FreeSlip()), Insulating()),
+    )
+
 
     if stommel
         turbulence = LinearDrag{FT}(λ)
@@ -55,39 +86,18 @@ function setup_model(FT, stommel, linear, τₒ, fₒ, β, γ, ν, Lˣ, Lʸ, H)
     if linear
         advection = nothing
     else
-        advection = NonLinearAdvection()
+        advection = NonLinearAdvectionTerm()
     end
 
-    model = ShallowWaterModel(param_set, problem, turbulence, advection, c)
-end
-
-function shallow_init_state!(
-    m::ShallowWaterModel,
-    p::GyreInABox,
-    state,
-    aux,
-    coords,
-    t,
-)
-    if t == 0
-        null_init_state!(p, m.turbulence, state, aux, coords, 0)
-    else
-        gyre_init_state!(p, m.turbulence, state, aux, coords, t)
-    end
-end
-
-function shallow_init_aux!(p::GyreInABox, aux, geom)
-    @inbounds y = geom.coord[2]
-
-    Lʸ = p.Lʸ
-    τₒ = p.τₒ
-    fₒ = p.fₒ
-    β = p.β
-
-    aux.τ = @SVector [-τₒ * cos(π * y / Lʸ), 0]
-    aux.f = fₒ + β * (y - Lʸ / 2)
-
-    return nothing
+    model = ShallowWaterModel{FT}(
+        param_set,
+        problem,
+        turbulence,
+        advection,
+        c = c,
+        fₒ = fₒ,
+        β = β,
+    )
 end
 
 #########################
@@ -115,7 +125,15 @@ function run(mpicomm, topl, ArrayType, N, dt, FT, model, test)
 
     lsrk = LSRK144NiegemannDiehlBusch(dg, Q; dt = dt, t0 = 0)
 
-    cb = ()
+    nt_freq = floor(Int, 1 // 10 * timeend / dt)
+
+    cbcs_dg = ClimateMachine.StateCheck.sccreate(
+        [(Q, "2D state")],
+        nt_freq;
+        prec = 12,
+    )
+
+    cb = (cbcs_dg,)
 
     if test > 2
         outprefix = @sprintf("ic_mpirank%04d_ic", MPI.Comm_rank(mpicomm))
@@ -128,7 +146,7 @@ function run(mpicomm, topl, ArrayType, N, dt, FT, model, test)
         auxnames = flattenednames(vars_state(model, Auxiliary(), eltype(Qe)))
         writevtk(outprefix, Qe, dg, statenames, dg.state_auxiliary, auxnames)
 
-        step = [0]
+        vtkstep = [0]
         vtkpath = outname
         mkpath(vtkpath)
         cbvtk = GenericCallbacks.EveryXSimulationSteps(1000) do
@@ -136,7 +154,7 @@ function run(mpicomm, topl, ArrayType, N, dt, FT, model, test)
                 "%s/mpirank%04d_step%04d",
                 vtkpath,
                 MPI.Comm_rank(mpicomm),
-                step[1]
+                vtkstep[1]
             )
             @debug "doing VTK output" outprefix
             statenames =
@@ -151,7 +169,7 @@ function run(mpicomm, topl, ArrayType, N, dt, FT, model, test)
                 dg.state_auxiliary,
                 auxiliarynames,
             )
-            step[1] += 1
+            vtkstep[1] += 1
             nothing
         end
         cb = (cb..., cbvtk)
@@ -200,7 +218,12 @@ let
             range(FT(0); length = Ne + 1, stop = Lˣ),
             range(FT(0); length = Ne + 1, stop = Lʸ),
         )
-        topl = BrickTopology(mpicomm, brickrange, periodicity = (false, false))
+        topl = BrickTopology(
+            mpicomm,
+            brickrange,
+            periodicity = (false, false),
+            boundary = ((1, 1), (1, 1)),
+        )
 
         for (j, N) in enumerate(orderrange)
             @info "running Ne $Ne and N $N with"

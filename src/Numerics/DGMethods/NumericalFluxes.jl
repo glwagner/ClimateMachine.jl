@@ -4,6 +4,7 @@ export NumericalFluxGradient,
     NumericalFluxFirstOrder,
     NumericalFluxSecondOrder,
     RusanovNumericalFlux,
+    RoeNumericalFlux,
     CentralNumericalFluxGradient,
     CentralNumericalFluxFirstOrder,
     CentralNumericalFluxSecondOrder,
@@ -278,7 +279,7 @@ function numerical_flux_first_order!(
 ) where {S, A}
 
     FT = eltype(fluxᵀn)
-    num_state_prognostic = number_states(balance_law, Prognostic(), FT)
+    num_state_prognostic = number_states(balance_law, Prognostic())
     fluxᵀn = parent(fluxᵀn)
 
     flux⁻ = similar(fluxᵀn, Size(3, num_state_prognostic))
@@ -305,6 +306,19 @@ function numerical_flux_first_order!(
 
     fluxᵀn .+= (flux⁻ + flux⁺)' * (normal_vector / 2)
 end
+
+"""
+    RoeNumericalFlux() <: NumericalFluxFirstOrder
+
+A numerical flux based on the approximate Riemann solver of Roe
+
+# Usage
+
+    RoeNumericalFlux()
+
+Requires a custom implementation for the balance law.
+"""
+struct RoeNumericalFlux <: NumericalFluxFirstOrder end
 
 """
     NumericalFluxSecondOrder
@@ -364,7 +378,7 @@ function numerical_flux_second_order!(
 ) where {S, D, HD, A}
 
     FT = eltype(fluxᵀn)
-    num_state_prognostic = number_states(balance_law, Prognostic(), FT)
+    num_state_prognostic = number_states(balance_law, Prognostic())
     fluxᵀn = parent(fluxᵀn)
 
     flux⁻ = similar(fluxᵀn, Size(3, num_state_prognostic))
@@ -563,7 +577,7 @@ function normal_boundary_flux_second_order!(
     aux1⁻,
 ) where {S}
     FT = eltype(fluxᵀn)
-    num_state_prognostic = number_states(balance_law, Prognostic(), FT)
+    num_state_prognostic = number_states(balance_law, Prognostic())
     fluxᵀn = parent(fluxᵀn)
 
     flux = similar(fluxᵀn, Size(3, num_state_prognostic))

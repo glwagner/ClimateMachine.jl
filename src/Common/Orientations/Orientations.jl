@@ -27,11 +27,15 @@ using LinearAlgebra
 
 using ..VariableTemplates
 using ..BalanceLaws
+using ..MPIStateArrays: MPIStateArray
 import ..BalanceLaws: vars_state
+using ..DGMethods:
+    init_state_auxiliary!, continuous_field_gradient!, LocalGeometry
 
 export Orientation, NoOrientation, FlatOrientation, SphericalOrientation
 
 export init_aux!,
+    orientation_nodal_init_aux!,
     vertical_unit_vector,
     altitude,
     latitude,
@@ -39,7 +43,9 @@ export init_aux!,
     projection_normal,
     gravitational_potential,
     ∇gravitational_potential,
-    projection_tangential
+    projection_tangential,
+    sphr_to_cart_vec,
+    cart_to_sphr_vec
 
 
 abstract type Orientation <: BalanceLaw end
@@ -92,6 +98,33 @@ function projection_tangential(
     return u⃗ .- projection_normal(orientation, param_set, aux, u⃗)
 end
 
+function init_aux!(
+    m,
+    ::Orientation,
+    state_auxiliary::MPIStateArray,
+    grid,
+    direction,
+)
+    init_state_auxiliary!(
+        m,
+        (m, aux, tmp, geom) ->
+            orientation_nodal_init_aux!(m.orientation, m.param_set, aux, geom),
+        state_auxiliary,
+        grid,
+        direction,
+    )
+
+    continuous_field_gradient!(
+        m,
+        state_auxiliary,
+        ("orientation.∇Φ",),
+        state_auxiliary,
+        ("orientation.Φ",),
+        grid,
+        direction,
+    )
+end
+
 #####
 ##### NoOrientation
 #####
@@ -103,7 +136,8 @@ No gravitational force or potential.
 """
 struct NoOrientation <: Orientation end
 
-init_aux!(::NoOrientation, param_set::APS, aux::Vars) = nothing
+init_aux!(m, ::NoOrientation, state_auxiliary::MPIStateArray, grid, direction) =
+    nothing
 
 vars_state(m::NoOrientation, ::Auxiliary, FT) = @vars()
 
@@ -125,14 +159,19 @@ to the surface of the planet.
 """
 struct SphericalOrientation <: Orientation end
 
-function init_aux!(::SphericalOrientation, param_set::APS, aux::Vars)
+function orientation_nodal_init_aux!(
+    ::SphericalOrientation,
+    param_set::APS,
+    aux::Vars,
+    geom::LocalGeometry,
+)
     FT = eltype(aux)
     _grav::FT = grav(param_set)
     _planet_radius::FT = planet_radius(param_set)
-    normcoord = norm(aux.coord)
+    normcoord = norm(geom.coord)
     aux.orientation.Φ = _grav * (normcoord - _planet_radius)
-    aux.orientation.∇Φ = _grav / normcoord .* aux.coord
 end
+
 
 # TODO: should we define these for non-spherical orientations?
 latitude(orientation::SphericalOrientation, aux::Vars) =
@@ -141,6 +180,57 @@ latitude(orientation::SphericalOrientation, aux::Vars) =
 longitude(orientation::SphericalOrientation, aux::Vars) =
     @inbounds atan(aux.coord[2], aux.coord[1])
 
+"""
+    sphr_to_cart_vec(orientation::SphericalOrientation, state::Vars, aux::Vars)
+
+Projects a vector defined based on unit vectors in spherical coordinates to cartesian unit vectors.
+"""
+function sphr_to_cart_vec(
+    orientation::SphericalOrientation,
+    vec::AbstractVector,
+    aux::Vars,
+)
+    FT = eltype(aux)
+    lat = latitude(orientation, aux)
+    lon = longitude(orientation, aux)
+
+    slat, clat = sin(lat), cos(lat)
+    slon, clon = sin(lon), cos(lon)
+
+    u = MVector{3, FT}(
+        -slon * vec[1] - slat * clon * vec[2] + clat * clon * vec[3],
+        clon * vec[1] - slat * slon * vec[2] + clat * slon * vec[3],
+        clat * vec[2] + slat * vec[3],
+    )
+
+    return u
+end
+
+"""
+    cart_to_sphr_vec(orientation::SphericalOrientation, state::Vars, aux::Vars)
+
+Projects a vector defined based on unit vectors in cartesian coordinates to a spherical unit vectors.
+"""
+function cart_to_sphr_vec(
+    orientation::SphericalOrientation,
+    vec::AbstractVector,
+    aux::Vars,
+)
+    FT = eltype(aux)
+    lat = latitude(orientation, aux)
+    lon = longitude(orientation, aux)
+
+    slat, clat = sin(lat), cos(lat)
+    slon, clon = sin(lon), cos(lon)
+
+    u = MVector{3, FT}(
+        -slon * vec[1] + clon * vec[2],
+        -slat * clon * vec[1] - slat * slon * vec[2] + clat * vec[3],
+        clat * clon * vec[1] + clat * slon * vec[2] + slat * vec[3],
+    )
+
+    return u
+end
 
 #####
 ##### FlatOrientation
@@ -155,11 +245,15 @@ Gravity acts in the third coordinate, and the gravitational potential is relativ
 struct FlatOrientation <: Orientation
     # for Coriolis we could add latitude?
 end
-function init_aux!(::FlatOrientation, param_set::APS, aux::Vars)
+function orientation_nodal_init_aux!(
+    ::FlatOrientation,
+    param_set::APS,
+    aux::Vars,
+    geom::LocalGeometry,
+)
     FT = eltype(aux)
     _grav::FT = grav(param_set)
-    @inbounds aux.orientation.Φ = _grav * aux.coord[3]
-    aux.orientation.∇Φ = SVector{3, FT}(0, 0, _grav)
+    @inbounds aux.orientation.Φ = _grav * geom.coord[3]
 end
 
 end

@@ -17,7 +17,7 @@ using ..SystemSolvers
 using ..ConfigTypes
 using ..Diagnostics
 using ..DGMethods
-using ..BalanceLaws: BalanceLaw, vars_state, update_auxiliary_state!
+using ..BalanceLaws
 using ..DGMethods: remainder_DGModel
 using ..DGMethods.NumericalFluxes
 using ..Ocean.HydrostaticBoussinesq
@@ -28,6 +28,7 @@ using ..MPIStateArrays
 using ..ODESolvers
 using ..TicToc
 using ..VariableTemplates
+using ..VTK
 
 function _init_array(::Type{CuArray})
     comm = MPI.COMM_WORLD
@@ -66,8 +67,10 @@ Base.@kwdef mutable struct ClimateMachine_Settings
     log_level::String = "INFO"
     disable_custom_logger::Bool = false
     output_dir::String = "output"
+    debug_init::Bool = false
     integration_testing::Bool = false
     array_type::Type = Array
+    fixed_number_of_steps::Int = -1
 end
 
 const Settings = ClimateMachine_Settings()
@@ -165,7 +168,8 @@ function parse_commandline(
         preformatted_epilog = true,
         version = string(CLIMATEMACHINE_VERSION),
         exc_handler = exc_handler,
-        autofix_names = true,  # switches --flag-name to 'flag_name'
+        autofix_names = true,     # switches --flag-name to 'flag_name'
+        error_on_conflict = true, # don't allow custom_clargs' settings to override these
     )
     add_arg_group!(s, "ClimateMachine")
 
@@ -257,11 +261,21 @@ function parse_commandline(
                 get(ENV, "CLIMATEMACHINE_SETTINGS_OUTPUT_DIR", Settings.output_dir)
             end
         end
+        "--debug-init"
+        help = "fill state arrays with NaNs and dump them post-initialization"
+        action = :store_const
+        constant = true
+        default = get_setting(:debug_init, defaults, global_defaults)
         "--integration-testing"
         help = "enable integration testing"
         action = :store_const
         constant = true
         default = get_setting(:integration_testing, defaults, global_defaults)
+        "--fixed-number-of-steps"
+        help = "if `≥0` perform specified number of steps"
+        metavar = "<number>"
+        arg_type = Int
+        default = get_setting(:fixed_number_of_steps, defaults, global_defaults)
     end
     # add custom cli argparse settings if provided
     if !isnothing(custom_clargs)
@@ -328,6 +342,8 @@ Recognized keyword arguments are:
         disable using a global custom logger for ClimateMachine
 - `output_dir::String = "output"`: (path)
         absolute or relative path to output data directory
+- `debug_init::Bool = false`:
+        fill state arrays with NaNs and dump them post-initialization
 - `integration_testing::Bool = false`:
         enable integration_testing
 
@@ -489,28 +505,48 @@ include("diagnostics_configs.jl")
 
 
 """
+    ClimateMachine.ConservationCheck
+
+Pass a tuple of these to `ClimateMachine.invoke!` to perform a
+conservation check of each `varname` at the specified `interval`. This
+computes `Σv = weightedsum(Q.varname)` and `δv = (Σv - Σv₀) / Σv`.
+`invoke!` throws an error if `abs(δv)` exceeds `error_threshold. If
+`show`, `δv` is displayed.
+"""
+struct ConservationCheck{FT}
+    varname::String
+    interval::String
+    error_threshold::FT
+    show::Bool
+end
+ConservationCheck(varname::String, interval::String) =
+    ConservationCheck(varname, interval, Inf, true)
+ConservationCheck(
+    varname::String,
+    interval::String,
+    error_threshold::FT,
+) where {FT} = ConservationCheck(varname, interval, error_threshold, true)
+
+"""
     ClimateMachine.invoke!(
         solver_config::SolverConfiguration;
+        adjustfinalstep = false,
         diagnostics_config = nothing,
         user_callbacks = (),
-        check_euclidean_distance = false,
-        adjustfinalstep = false,
         user_info_callback = () -> nothing,
+        check_cons = (),
+        check_euclidean_distance = false,
     )
 
 Run the simulation defined by `solver_config`.
 
 Keyword Arguments:
 
-The `user_callbacks` are passed to the ODE solver as callback functions;
-see [`solve!`](@ref ODESolvers.solve!).
-
-If `check_euclidean_distance` is `true, then the Euclidean distance
-between the final solution and initial condition function evaluated with
-`solver_config.timeend` is reported.
-
 The value of 'adjustfinalstep` is passed to the ODE solver; see
 [`solve!`](@ref ODESolvers.solve!).
+
+The `user_callbacks` are passed to the ODE solver as callback functions;
+see [`solve!`](@ref ODESolvers.solve!).
 
 The function `user_info_callback` is called after the default info
 callback (which is called every `Settings.show_updates` interval). The
@@ -518,14 +554,22 @@ single input argument `init` is `true` when the callback is called for
 initialization (before time stepping begins) and `false` when called
 during the actual ODE solve; see [`GenericCallbacks`](@ref) and
 [`solve!`](@ref ODESolvers.solve!).
+
+If conservation checks are to be performed, `check_cons` must be a
+tuple of [`ConservationCheck`](@ref).
+
+If `check_euclidean_distance` is `true, then the Euclidean distance
+between the final solution and initial condition function evaluated with
+`solver_config.timeend` is reported.
 """
 function invoke!(
     solver_config::SolverConfiguration;
+    adjustfinalstep = false,
     diagnostics_config = nothing,
     user_callbacks = (),
-    check_euclidean_distance = false,
-    adjustfinalstep = false,
     user_info_callback = () -> nothing,
+    check_cons = (),
+    check_euclidean_distance = false,
 )
     mpicomm = solver_config.mpicomm
     dg = solver_config.dg
@@ -612,6 +656,10 @@ function invoke!(
         callbacks = (callbacks..., cb_checkpoint)
     end
 
+    # conservation callbacks
+    cccbs = Callbacks.check_cons(check_cons, solver_config)
+    callbacks = (callbacks..., cccbs...)
+
     # user callbacks
     callbacks = (user_callbacks..., callbacks...)
 
@@ -619,11 +667,11 @@ function invoke!(
     eng0 = norm(Q)
     @info @sprintf(
         """
-%s %s
-    dt              = %.5e
-    timeend         = %8.2f
-    number of steps = %d
-    norm(Q)         = %.16e""",
+        %s %s
+            dt              = %.5e
+            timeend         = %8.2f
+            number of steps = %d
+            norm(Q)         = %.16e""",
         Settings.restart_from_num > 0 ? "Restarting" : "Starting",
         solver_config.name,
         solver_config.dt,
@@ -654,26 +702,13 @@ function invoke!(
         )
     end
 
-    # fini diagnostics groups
-    # TODO: come up with a better mechanism
-    if Settings.diagnostics != "never" && !isnothing(diagnostics_config)
-        currtime = ODESolvers.gettime(solver)
-        for dgngrp in diagnostics_config.groups
-            dgngrp.fini(dgngrp, currtime)
-        end
-    end
-
-    # fini VTK
-    !isnothing(cb_vtk) &&
-    GenericCallbacks.call!(cb_vtk, nothing, nothing, nothing, nothing)
-
     engf = norm(Q)
     @info @sprintf(
         """
-Finished
-    norm(Q)            = %.16e
-    norm(Q) / norm(Q₀) = %.16e
-    norm(Q) - norm(Q₀) = %.16e""",
+        Finished
+            norm(Q)            = %.16e
+            norm(Q) / norm(Q₀) = %.16e
+            norm(Q) - norm(Q₀) = %.16e""",
         engf,
         engf / eng0,
         engf - eng0
@@ -686,9 +721,9 @@ Finished
         errf = euclidean_distance(Q, Qe)
         @info @sprintf(
             """
-Euclidean distance
-    norm(Q - Qe)            = %.16e
-    norm(Q - Qe) / norm(Qe) = %.16e""",
+            Euclidean distance
+                norm(Q - Qe)            = %.16e
+                norm(Q - Qe) / norm(Qe) = %.16e""",
             errf,
             errf / engfe
         )

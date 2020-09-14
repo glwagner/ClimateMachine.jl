@@ -1,34 +1,21 @@
 using ClimateMachine
+using ClimateMachine.Atmos
+using ClimateMachine.BalanceLaws
 using ClimateMachine.ConfigTypes
-using ClimateMachine.Mesh.Topologies: BrickTopology
-using ClimateMachine.Mesh.Grids: DiscontinuousSpectralElementGrid
-using ClimateMachine.DGMethods: DGModel, init_ode_state
-using ClimateMachine.DGMethods.NumericalFluxes:
-    RusanovNumericalFlux,
-    CentralNumericalFluxGradient,
-    CentralNumericalFluxSecondOrder,
-    CentralNumericalFluxFirstOrder
+using ClimateMachine.DGMethods
+using ClimateMachine.DGMethods.NumericalFluxes
+using ClimateMachine.GenericCallbacks
+using ClimateMachine.Mesh.Geometry
+using ClimateMachine.Mesh.Grids
+using ClimateMachine.Mesh.Topologies
+using ClimateMachine.MPIStateArrays
 using ClimateMachine.ODESolvers
-using ClimateMachine.VTK: writevtk, writepvtu
-using ClimateMachine.GenericCallbacks:
-    EveryXWallTimeSeconds, EveryXSimulationSteps
-using ClimateMachine.MPIStateArrays: euclidean_distance
-using ClimateMachine.Thermodynamics:
-    air_density, total_energy, soundspeed_air, PhaseDry_given_pT
-using ClimateMachine.Atmos:
-    AtmosModel,
-    NoReferenceState,
-    DryModel,
-    EquilMoist,
-    NoPrecipitation,
-    NoRadiation,
-    vars_state,
-    RoeNumericalFlux
-
-using ClimateMachine.Orientations: NoOrientation
-using ClimateMachine.VariableTemplates: flattenednames
+using ClimateMachine.Orientations
+using ClimateMachine.SystemSolvers
+using ClimateMachine.Thermodynamics
 using ClimateMachine.TurbulenceClosures
-using ClimateMachine.BalanceLaws: Prognostic
+using ClimateMachine.VariableTemplates
+using ClimateMachine.VTK
 
 using CLIMAParameters
 using CLIMAParameters.Planet: kappa_d
@@ -38,10 +25,10 @@ const param_set = EarthParameterSet()
 using MPI, Logging, StaticArrays, LinearAlgebra, Printf, Dates, Test
 
 if !@isdefined integration_testing
-    const integration_testing = true#=parse(
+    const integration_testing = =parse(
         Bool,
         lowercase(get(ENV, "JULIA_CLIMA_INTEGRATION_TESTING", "false")),
-    )=#
+    )
 end
 
 const output_vtk = false
@@ -106,10 +93,11 @@ function main()
     expected_error[Float32, 2, Roe, 2] = 1.3895936012268066e+00
     expected_error[Float32, 2, Roe, 3] = 6.8037144839763641e-02
     expected_error[Float32, 2, Roe, 4] = 3.8893952965736389e-02
-    #=expected_error[Float32, 2, Roe, 1] = 1.2849506378173828e+01
-    expected_error[Float32, 2, Roe, 2] = 1.3582377433776855e+00
-    expected_error[Float32, 2, Roe, 3] = 7.6708398759365082e-02
-    expected_error[Float32, 2, Roe, 4] = 4.3787240982055664e-02=#
+
+    expected_error[Float32, 2, Roe, 1] = 1.2891359329223633e+01
+    expected_error[Float32, 2, Roe, 2] = 1.3895936012268066e+00
+    expected_error[Float32, 2, Roe, 3] = 6.8037144839763641e-02
+    expected_error[Float32, 2, Roe, 4] = 3.8893952965736389e-02
 
     expected_error[Float32, 3, Rusanov, 1] = 3.7918186187744141e+00
     expected_error[Float32, 3, Rusanov, 2] = 6.5816193819046021e-01
@@ -125,10 +113,6 @@ function main()
     expected_error[Float32, 3, Roe, 2] = 4.3941807746887207e-01
     expected_error[Float32, 3, Roe, 3] = 2.1365188062191010e-02
     expected_error[Float32, 3, Roe, 4] = 9.3323951587080956e-03
-    #=expected_error[Float32, 3, Roe, 1] = 4.0633840560913086e+00
-    expected_error[Float32, 3, Roe, 2] = 4.2954716086387634e-01
-    expected_error[Float32, 3, Roe, 3] = 2.4156048893928528e-02
-    expected_error[Float32, 3, Roe, 4] = 9.7980611026287079e-03=#
 
     @testset "$(@__FILE__)" begin
         for FT in (Float64, Float32), dims in (2, 3)
@@ -218,16 +202,25 @@ function run(
         polynomialorder = polynomialorder,
     )
 
+    problem = AtmosProblem(
+        boundarycondition = (),
+        init_state_prognostic = isentropicvortex_initialcondition!,
+    )
+
     model = AtmosModel{FT}(
         AtmosLESConfigType,
         param_set;
+        problem = problem,
         orientation = NoOrientation(),
         ref_state = NoReferenceState(),
+<<<<<<< HEAD
         turbulence = ConstantViscosityWithDivergence(FT(0)),
         moisture = EquilMoist{FT}(),#DryModel(),
+=======
+        turbulence = ConstantDynamicViscosity(FT(0)),
+        moisture = DryModel(),
+>>>>>>> 4607e850cbe7d33247cfd5141d7907c9afdafaac
         source = nothing,
-        boundarycondition = (),
-        init_state_prognostic = isentropicvortex_initialcondition!,
     )
 
     dg = DGModel(
@@ -328,7 +321,15 @@ Base.@kwdef struct IsentropicVortexSetup{FT}
     domain_halflength::FT = 1 // 20
 end
 
-function isentropicvortex_initialcondition!(bl, state, aux, coords, t, args...)
+function isentropicvortex_initialcondition!(
+    problem,
+    bl,
+    state,
+    aux,
+    coords,
+    t,
+    args...,
+)
     setup = first(args)
     FT = eltype(state)
     x = MVector(coords)
