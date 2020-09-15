@@ -64,8 +64,10 @@ K_T =
         S_l,
     )
 ice_impedance_I = IceImpedance{FT}()
-θ_i = FT(0.3)
-S_l_accounting_for_ice = FT.(0.01:0.01:0.7) # note that the total volumetric water fraction cannot exceed unity.
+θ_i = FT(0.1)
+S_i = θ_i / ν
+
+S_l_accounting_for_ice = FT.(0.01:0.01:(0.99 - S_i))
 K_i =
     Ksat .*
     hydraulic_conductivity.(
@@ -81,12 +83,17 @@ K_i =
 plot(
     S_l,
     log10.(K),
-    xlabel = "effective saturation",
+    xlabel = "total effective saturation, (θ_i+θ_l)/ν",
     ylabel = "Log10(K)",
     label = "Base case",
+    legend = :bottomright,
 )
-plot!(S_l, log10.(K_T), label = "Temperature Dependent Viscosity")
-plot!(S_l_accounting_for_ice, log10.(K_i), label = "Ice Impedance")
+plot!(S_l, log10.(K_T), label = "Temperature Dependent Viscosity; no ice")
+plot!(
+    S_l_accounting_for_ice .+ S_i,
+    log10.(K_i),
+    label = "Ice Impedance; S_i=0.24",
+)
 savefig("T_ice_K.png")
 
 T = FT(0.0)

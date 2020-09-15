@@ -22,7 +22,7 @@ division (generic function with 2 methods)</code></pre><p>Now, using the same fu
 julia&gt; division(1.0,2.0)
 0.5</code></pre><p>Here is a more pertinent example: <code>hydraulics</code> is of type <code>vanGenuchten{Float32}</code> based on our choice of <code>FT</code>:</p><pre><code class="language-none">julia&gt; typeof(hydraulics)
 vanGenuchten{Float32}</code></pre><p>but meanwhile,</p><pre><code class="language-none">julia&gt; typeof(hydraulics_bc)
-BrooksCorey{Float32}</code></pre><p>The function <code>matric_potential</code> will execute different methods depending on if we pass a hydraulics model of type <code>vanGenuchten</code> or <code>BrooksCorey</code>. In both cases, it will return the correct value for <code>ψ</code>.</p><p>Let&#39;s plot the matric potential as a function of the effective saturation <code>S_l</code>, which can range from zero to one.</p><pre><code class="language-julia">S_l = FT.(0.01:0.01:0.99)
+BrooksCorey{Float32}</code></pre><p>The function <code>matric_potential</code> will execute different methods depending on if we pass a hydraulics model of type <code>vanGenuchten</code> or <code>BrooksCorey</code>. In both cases, it will return the correct value for <code>ψ</code>.</p><p>Let&#39;s plot the matric potential as a function of the effective saturation <code>S_l = θ_l/ν</code>, which can range from zero to one.</p><pre><code class="language-julia">S_l = FT.(0.01:0.01:0.99)
 ψ = matric_potential.(Ref(hydraulics), S_l)
 ψ_bc = matric_potential.(Ref(hydraulics_bc), S_l)
 plot(
@@ -51,7 +51,7 @@ K =
         Ref(ν),
         Ref(T),
         S_l,
-    );</code></pre><p>Let&#39;s also compute <code>K</code> when we include the effects of temperature and ice on the hydraulic conductivity. In the cases where a <code>TemperatureDependentViscosity{FT}</code> or <code>IceImpedance{FT}</code> type is passed, the correct factors are calculated, based on the temperature <code>T</code> and volumetric ice fraction <code>θ_i</code>. In these cases, the <code>viscosity_factor</code>, denoted here as <span>$K_v$</span>, evaluates as:</p><p><span>$K_v = e^{\gamma(T-T_{ref})},$</span></p><p>where <span>$\gamma = 0.0264 \mbox{K}^{-1}$</span> is an empirical factor, and <span>$T_{ref} = 288$</span> K, and the <code>impedance_factor</code>, denoted <span>$K_i$</span>, evaluates as:</p><p><span>$K_i = 10^{-\Omega S_i}$</span></p><p>where <span>$\Omega = 7$</span> is an empirical factor and <span>$S_i$</span> is the ratio of the volumetric ice fraction to porosity [5].</p><pre><code class="language-julia">viscosity_choice_T = TemperatureDependentViscosity{FT}()
+    );</code></pre><p>Let&#39;s also compute <code>K</code> when we include the effects of temperature and ice on the hydraulic conductivity. In the cases where a <code>TemperatureDependentViscosity{FT}</code> or <code>IceImpedance{FT}</code> type is passed, the correct factors are calculated, based on the temperature <code>T</code> and volumetric ice fraction <code>θ_i</code>. In these cases, the <code>viscosity_factor</code>, denoted here as <span>$K_v$</span>, evaluates as:</p><p><span>$K_v = e^{\gamma(T-T_{ref})},$</span></p><p>where <span>$\gamma = 0.0264 \mbox{K}^{-1}$</span> is an empirical factor, and <span>$T_{ref} = 288$</span> K, and the <code>impedance_factor</code>, denoted <span>$K_i$</span>, evaluates as:</p><p><span>$K_i = 10^{-\Omega f_i}$</span></p><p>where <span>$\Omega = 7$</span> is an empirical factor and <span>$f_i$</span> is the ratio of the volumetric ice fraction to total volumetric water fraction [5].</p><pre><code class="language-julia">viscosity_choice_T = TemperatureDependentViscosity{FT}()
 T = FT(300.0)
 K_T =
     Ksat .*
@@ -66,8 +66,8 @@ K_T =
         S_l,
     )
 ice_impedance_I = IceImpedance{FT}()
-θ_i = FT(0.3)
-S_l_accounting_for_ice = FT.(0.01:0.01:0.7) # note that the total volumetric water fraction cannot exceed unity.
+θ_i = FT(0.1)
+S_i = θ_i / ν</code></pre><pre class="documenter-example-output">0.24390244f0</pre><p>The total volumetric water fraction cannot exceed unity, so the effective liquid water saturation should have a max of 1-S_i.</p><pre><code class="language-julia">S_l_accounting_for_ice = FT.(0.01:0.01:(0.99 - S_i))
 K_i =
     Ksat .*
     hydraulic_conductivity.(
@@ -83,12 +83,17 @@ K_i =
 plot(
     S_l,
     log10.(K),
-    xlabel = &quot;effective saturation&quot;,
+    xlabel = &quot;total effective saturation, (θ_i+θ_l)/ν&quot;,
     ylabel = &quot;Log10(K)&quot;,
     label = &quot;Base case&quot;,
+    legend = :bottomright,
 )
-plot!(S_l, log10.(K_T), label = &quot;Temperature Dependent Viscosity&quot;)
-plot!(S_l_accounting_for_ice, log10.(K_i), label = &quot;Ice Impedance&quot;)
+plot!(S_l, log10.(K_T), label = &quot;Temperature Dependent Viscosity; no ice&quot;)
+plot!(
+    S_l_accounting_for_ice .+ S_i,
+    log10.(K_i),
+    label = &quot;Ice Impedance; S_i=0.24&quot;,
+)
 savefig(&quot;T_ice_K.png&quot;)</code></pre><p><img src="../T_ice_K.png" alt/></p><p>If the user is not considering phase transitions and does not add in Freeze/Thaw source terms, the default is for zero ice in the model, for all time and space. In this case the ice impedance factor evaluates to 1 regardless of which type is passed.</p><p>We can also look and see how the Brooks and Corey moisture factor differs from the van Genuchten moisture factor by changing the <code>hydraulics</code> model passed:</p><pre><code class="language-julia">T = FT(0.0)
 θ_i = FT(0.0)
 
@@ -132,4 +137,4 @@ K_constant =
         S_l,
     );</code></pre><pre><code class="language-none">    julia&gt; unique(K_constant)
     1-element Array{Float32,1}:
-     1.2277777f-5</code></pre><p>Note that choosing this option does not mean the matric potential is constant, as a hydraulics model is still required and employed.</p><p>And, lastly, you might be wondering why we left <code>Ksat</code> out of the function for <code>hydraulic_conductivity</code>. It turns out it is also useful for debugging to be able to turn off the diffusion of water, by setting <code>Ksat = 0</code>.</p><h1 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h1><p>[1] van Genuchten, M. T. (1980), A closed-form equation for predicting the hydraulic conductivity of unsaturated soils, Soil Sci. Soc. Amer. J., pp. 892–898.</p><p>[2] Brooks, R. J., and A. T. Corey (1964), Hydraulic properties of porous media.</p><p>[3] Corey, A. T. (1977), Mechanics of Heterogeneous Fluids in Porous Media, Water Resources Publication, Fort Collins, CO.</p><p>[4] Bonan, G. (2019), Climate Change and Terrestrial Ecoystem Modeling, Cambridge Univ. Press, Cambridge, UK, and New York, NY, USA. Chapter 8, Page 120</p><p>[5] Lundin, L.-C. (1990), Hydraulic properties in an operational model of frozen soil, J. Hydrol., 118, 289–310.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../../Heat/heat_equation/">« Heat Equation</a><a class="docs-footer-nextpage" href="../../Heat/bonan_heat_tutorial/">Soil Heat Equation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 15 September 2020 17:29">Tuesday 15 September 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+     1.2277777f-5</code></pre><p>Note that choosing this option does not mean the matric potential is constant, as a hydraulics model is still required and employed.</p><p>And, lastly, you might be wondering why we left <code>Ksat</code> out of the function for <code>hydraulic_conductivity</code>. It turns out it is also useful for debugging to be able to turn off the diffusion of water, by setting <code>Ksat = 0</code>.</p><h1 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h1><p>[1] van Genuchten, M. T. (1980), A closed-form equation for predicting the hydraulic conductivity of unsaturated soils, Soil Sci. Soc. Amer. J., pp. 892–898.</p><p>[2] Brooks, R. J., and A. T. Corey (1964), Hydraulic properties of porous media.</p><p>[3] Corey, A. T. (1977), Mechanics of Heterogeneous Fluids in Porous Media, Water Resources Publication, Fort Collins, CO.</p><p>[4] Bonan, G. (2019), Climate Change and Terrestrial Ecoystem Modeling, Cambridge Univ. Press, Cambridge, UK, and New York, NY, USA. Chapter 8, Page 120</p><p>[5] Lundin, L.-C. (1990), Hydraulic properties in an operational model of frozen soil, J. Hydrol., 118, 289–310.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../../Heat/heat_equation/">« Heat Equation</a><a class="docs-footer-nextpage" href="../../Heat/bonan_heat_tutorial/">Soil Heat Equation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Tuesday 15 September 2020 22:16">Tuesday 15 September 2020</span>. Using Julia version 1.4.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
