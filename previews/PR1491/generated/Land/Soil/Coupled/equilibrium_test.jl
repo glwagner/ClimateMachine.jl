@@ -6,7 +6,6 @@ using Plots
 
 using CLIMAParameters
 using CLIMAParameters.Planet: ρ_cloud_liq, ρ_cloud_ice, cp_l, cp_i, T_0, LH_f0
-using CLIMAParameters.Atmos.Microphysics: K_therm
 
 using ClimateMachine
 using ClimateMachine.Land
@@ -60,12 +59,9 @@ vg_α = FT(7.5); # inverse meters
 κ_liq = FT(0.57) # W/m/K
 κ_ice = FT(2.29); # W/m/K
 
-κ_air = FT(K_therm(param_set)); # W/m/K
-
 ρp = FT(2700); # kg/m^3
 
 κ_solid = k_solid(ν_ss_om, ν_ss_quartz, κ_quartz, κ_minerals, κ_om)
-κ_dry = k_dry(κ_solid, porosity, κ_air, ρp)
 κ_sat_frozen = ksat_frozen(κ_solid, porosity, κ_ice)
 κ_sat_unfrozen = ksat_unfrozen(κ_solid, porosity, κ_liq);
 
@@ -79,12 +75,23 @@ soil_param_functions = SoilParamFunctions{FT}(
     ν_ss_om = ν_ss_om,
     ν_ss_quartz = ν_ss_quartz,
     ρc_ds = ρc_ds,
-    κ_dry = κ_dry,
+    ρp = ρp,
+    κ_solid = κ_solid,
     κ_sat_unfrozen = κ_sat_unfrozen,
     κ_sat_frozen = κ_sat_frozen,
-    a = 0.24, # used in the Kersten number [2]
-    b = 18.1, # used in the Kersten number [2]
 );
+
+function T_init(aux)
+    FT = eltype(aux)
+    zmax = FT(0)
+    zmin = FT(-1)
+    T_max = FT(289.0)
+    T_min = FT(288.0)
+    c = FT(20.0)
+    z = aux.z
+    output = T_min + (T_max - T_min) * exp(-(z - zmax) / (zmin - zmax) * c)
+    return output
+end;
 
 function ϑ_l0(aux)
     FT = eltype(aux)
@@ -104,18 +111,6 @@ surface_water_flux = (aux, t) -> eltype(aux)(0.0)
 bottom_water_flux = (aux, t) -> eltype(aux)(0.0)
 surface_water_state = nothing
 bottom_water_state = nothing;
-
-function T_init(aux)
-    FT = eltype(aux)
-    zmax = FT(0)
-    zmin = FT(-1)
-    T_max = FT(289.0)
-    T_min = FT(288.0)
-    c = FT(20.0)
-    z = aux.z
-    output = T_min + (T_max - T_min) * exp(-(z - zmax) / (zmin - zmax) * c)
-    return output
-end;
 
 surface_heat_flux = (aux, t) -> eltype(aux)(0.0)
 bottom_heat_flux = (aux, t) -> eltype(aux)(0.0)
