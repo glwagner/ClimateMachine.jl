@@ -131,7 +131,7 @@ end;
 soil_water_model = PrescribedWaterModel(
     (aux, t) -> prescribed_augmented_liquid_fraction,
     (aux, t) -> prescribed_volumetric_ice_fraction,
-)
+);
 
 soil_heat_model = SoilHeatModel(
     FT;

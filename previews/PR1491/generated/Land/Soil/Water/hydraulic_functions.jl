@@ -65,7 +65,7 @@ K_T =
     )
 ice_impedance_I = IceImpedance{FT}()
 θ_i = FT(0.1)
-S_i = θ_i / ν
+S_i = θ_i / ν;
 
 S_l_accounting_for_ice = FT.(0.01:0.01:(0.99 - S_i))
 K_i =
