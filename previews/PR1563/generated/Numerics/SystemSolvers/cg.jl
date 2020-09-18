@@ -27,7 +27,7 @@ linearsolver = ConjugateGradient(b);
 
 x = ones(typeof(1.0), 3);
 
-iters = linearsolve!(linear_operator!, linearsolver, x, b)
+iters = linearsolve!(linear_operator!, nothing, linearsolver, x, b)
 
 norm(x - x_exact) / norm(x_exact)
 
@@ -60,7 +60,7 @@ linearsolver = ConjugateGradient(b, max_iter = 100);
 
 x = ones(typeof(1.0), 3);
 
-iters = linearsolve!(linear_operator!, linearsolver, x, b)
+iters = linearsolve!(linear_operator!, nothing, linearsolver, x, b)
 
 norm(x - x_exact) / norm(x_exact)
 
@@ -117,7 +117,7 @@ linearsolver = ConjugateGradient(
     reshape_tuple = tup,
 );
 
-iters = linearsolve!(columnwise_linear_operator!, linearsolver, x, b);
+iters = linearsolve!(columnwise_linear_operator!, nothing, linearsolver, x, b);
 x_exact = copy(x);
 columnwise_inverse_linear_operator!(x_exact, b);
 
