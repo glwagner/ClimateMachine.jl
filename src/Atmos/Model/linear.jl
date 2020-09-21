@@ -345,3 +345,90 @@ function numerical_flux_first_order!(
     fluxᵀn.ρu -= c̃ * Δρuᵀn * normal_vector / 2
     fluxᵀn.ρe -= h̃ * ΔpL / 2c̃
 end
+
+function RoeAverage(ρ⁻, ρ⁺, x⁻, x⁺)
+    return (sqrt(ρ⁻) * x⁻ + sqrt(ρ⁺) * x⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
+end
+
+function numerical_flux_first_order!(
+    numerical_flux::RoeNumericalFluxMoist,
+    balance_law::AtmosLinearModel,
+    fluxᵀn::Vars{S},
+    normal_vector::SVector,
+    state_prognostic⁻::Vars{S},
+    state_auxiliary⁻::Vars{A},
+    state_prognostic⁺::Vars{S},
+    state_auxiliary⁺::Vars{A},
+    t,
+    direction,
+) where {S, A}
+
+    numerical_flux_first_order!(
+        CentralNumericalFluxFirstOrder(),
+        balance_law,
+        fluxᵀn,
+        normal_vector,
+        state_prognostic⁻,
+        state_auxiliary⁻,
+        state_prognostic⁺,
+        state_auxiliary⁺,
+        t,
+        direction,
+    )
+
+    atmos = balance_law.atmos
+    param_set = atmos.param_set
+
+    ρu⁻ = state_prognostic⁻.ρu
+
+    ref_ρ⁻ = state_auxiliary⁻.ref_state.ρ
+    ref_ρe⁻ = state_auxiliary⁻.ref_state.ρe
+    ref_T⁻ = state_auxiliary⁻.ref_state.T
+    ref_q⁻ = state_auxiliary⁻.ref_state.ρq_tot / ref_ρ⁻
+    ref_p⁻ = state_auxiliary⁻.ref_state.p
+    #ref_h⁻ = (ref_ρe⁻ + ref_p⁻) / ref_ρ⁻
+    q_pt⁻ = PhasePartition(ref_q⁻)
+    _R_m⁻ = gas_constant_air(param_set, q_pt⁻)
+    ref_h⁻ = total_specific_enthalpy(ref_ρe⁻, _R_m⁻, ref_T⁻)
+
+    ref_c⁻ = soundspeed_air(param_set, ref_T⁻, q_pt⁻)
+
+    pL⁻ = linearized_pressure(
+        atmos.moisture,
+        param_set,
+        atmos.orientation,
+        state_prognostic⁻,
+        state_auxiliary⁻,
+    )
+
+    ρu⁺ = state_prognostic⁺.ρu
+
+    ref_ρ⁺ = state_auxiliary⁺.ref_state.ρ
+    ref_ρe⁺ = state_auxiliary⁺.ref_state.ρe
+    ref_T⁺ = state_auxiliary⁺.ref_state.T
+    ref_q⁺ = state_auxiliary⁺.ref_state.ρq_tot / ref_ρ⁺
+    ref_p⁺ = state_auxiliary⁺.ref_state.p
+    #ref_h⁺ = (ref_ρe⁺ + ref_p⁺) / ref_ρ⁺
+    q_pt⁺ = PhasePartition(ref_q⁺)
+    _R_m⁺ = gas_constant_air(param_set, q_pt⁺)
+    ref_h⁺ = total_specific_enthalpy(ref_ρe⁺, _R_m⁺, ref_T⁺)
+    ref_c⁺ = soundspeed_air(param_set, ref_T⁺, q_pt⁺)
+    pL⁺ = linearized_pressure(
+        atmos.moisture,
+        param_set,
+        atmos.orientation,
+        state_prognostic⁺,
+        state_auxiliary⁺,
+    )
+
+    # not sure if arithmetic averages are a good idea here
+    h̃ = RoeAverage(ref_ρ⁻,ref_ρ⁺,ref_h⁻, ref_h⁺)#(ref_h⁻ + ref_h⁺) / 2
+    c̃ = sqrt(RoeAverage(ref_ρ⁻,ref_ρ⁺,ref_c⁻^2, ref_c⁺^2))#(ref_c⁻ + ref_c⁺) / 2
+    
+    ΔpL = pL⁺ - pL⁻
+    Δρuᵀn = (ρu⁺ - ρu⁻)' * normal_vector
+
+    fluxᵀn.ρ -= ΔpL / 2c̃
+    fluxᵀn.ρu -= c̃ * Δρuᵀn * normal_vector / 2
+    fluxᵀn.ρe -= h̃ * ΔpL / 2c̃
+end

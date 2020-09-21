@@ -5,6 +5,7 @@ export NumericalFluxGradient,
     NumericalFluxSecondOrder,
     RusanovNumericalFlux,
     RoeNumericalFlux,
+    RoeNumericalFluxMoist,
     CentralNumericalFluxGradient,
     CentralNumericalFluxFirstOrder,
     CentralNumericalFluxSecondOrder,
@@ -342,6 +343,10 @@ An optional method can also be defined for
                                        Qaux⁻, Q⁺, Qstate_gradient_flux⁺, Qaux⁺, bctype, t)
 
 """
+
+struct RoeNumericalFluxMoist <: NumericalFluxFirstOrder end
+
+
 abstract type NumericalFluxSecondOrder end
 
 function numerical_flux_second_order! end

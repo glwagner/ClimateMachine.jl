@@ -67,7 +67,7 @@
 # specific to atmospheric and ocean flow modeling.
 
 using ClimateMachine
-ClimateMachine.init()
+ClimateMachine.init(parse_clargs = true)
 using ClimateMachine.Atmos
 using ClimateMachine.Orientations
 using ClimateMachine.ConfigTypes
@@ -110,67 +110,40 @@ const param_set = EarthParameterSet();
 ##     - `state.tracers.ρχ` = Vector of four tracers (here, for demonstration
 ##       only; we can interpret these as dye injections for visualization
 ##       purposes)
-function init_risingbubble!(problem, bl, state, aux, (x, y, z), t)
+function init_Riemann!(problem, bl, state, aux, (x, y, z), t)
     ## Problem float-type
     FT = eltype(state)
-
-    ## Unpack constant parameters
-    R_gas::FT = R_d(bl.param_set)
-    c_p::FT = cp_d(bl.param_set)
-    c_v::FT = cv_d(bl.param_set)
-    p0::FT = MSLP(bl.param_set)
-    _grav::FT = grav(bl.param_set)
-    γ::FT = c_p / c_v
-
-    ## Define bubble center and background potential temperature
-    xc::FT = 5000
-    yc::FT = 1000
-    zc::FT = 2000
-    r = sqrt((x - xc)^2 + (z - zc)^2)
-    rc::FT = 2000
-    θamplitude::FT = 2
-
-    ## TODO: clean this up, or add convenience function:
-    ## This is configured in the reference hydrostatic state
-    θ_ref::FT = bl.ref_state.virtual_temperature_profile.T_surface
-
-    ## Add the thermal perturbation:
-    Δθ::FT = 0
-    if r <= rc
-        Δθ = θamplitude * (1.0 - r / rc)
-    end
-
-    ## Compute perturbed thermodynamic state:
-    θ = θ_ref + Δθ                                      # potential temperature
-    π_exner = FT(1) - _grav / (c_p * θ) * z             # exner pressure
-    ρ = p0 / (R_gas * θ) * (π_exner)^(c_v / R_gas)      # density
-    T = θ * π_exner
-    e_int = internal_energy(bl.param_set, T)
-    ts = PhaseDry(bl.param_set, e_int, ρ)
-    ρu = SVector(FT(0), FT(0), FT(0))                   # momentum
-    ## State (prognostic) variable assignment
-    e_kin = FT(0)                                       # kinetic energy
-    e_pot = gravitational_potential(bl, aux)            # potential energy
-    ρe_tot = ρ * total_energy(e_kin, e_pot, ts)         # total energy
-
-    ρχ = FT(0)                                          # tracer
-
-    ## We inject tracers at the initial condition at some specified z coordinates
-    if 500 < z <= 550
-        ρχ += FT(0.05)
-    end
-
-    ## We want 4 tracers
-    ntracers = 4
-
-    ## Define 4 tracers, (arbitrary scaling for this demo problem)
-    ρχ = SVector{ntracers, FT}(ρχ, ρχ / 2, ρχ / 3, ρχ / 4)
-
+    param = bl.param_set
     ## Assign State Variables
-    state.ρ = ρ
-    state.ρu = ρu
-    state.ρe = ρe_tot
-    state.tracers.ρχ = ρχ
+    ##Test2
+    if (x<0)
+      state.ρ = FT(1)
+      state.ρu = SVector{3,FT}(-2, 0, 0)
+      state.ρe = FT(3)
+      state.moisture.ρq_tot = FT(0)
+    else
+      state.ρ = FT(1)
+      state.ρu = SVector{3,FT}(2, 0, 0)
+      state.ρe = FT(3)
+      state.moisture.ρq_tot = FT(0)
+    end
+    ## Test 3
+    #=if (x<0)
+      state.ρ = FT(1)
+      state.ρu = SVector{3,FT}(0, 0, 0)
+      p = FT(100000)
+      T = air_temperature_from_ideal_gas_law(param, p, FT(1))
+      state.ρe = internal_energy(param, T)
+      state.moisture.ρq_tot = FT(0)
+    else
+      state.ρ = FT(1)
+      state.ρu = SVector{3,FT}(0, 0, 0)
+      p = FT(10)
+      T = air_temperature_from_ideal_gas_law(param, p, FT(1))
+      state.ρe = internal_energy(param, T)
+      state.moisture.ρq_tot = FT(0)
+    end=#
+
 end
 
 # ## [Model Configuration](@id config-helper)
@@ -178,7 +151,7 @@ end
 # model. The purpose of this is to populate the
 # [`ClimateMachine.AtmosLESConfiguration`](@ref LESConfig) with arguments
 # appropriate to the problem being considered.
-function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
+function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
 
     ## Choose an Explicit Single-rate Solver from the existing [ODESolvers](@ref
     ## ODESolvers-docs) options. Apply the outer constructor to define the
@@ -225,32 +198,44 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ##     - [`source`](@ref atmos-sources)
     ##     - [`tracers`](@ref Tracers-docs)
     ##     - [`init_state`](@ref init)
+    problem = AtmosProblem(
+        boundarycondition = (
+            AtmosBC(momentum = OutFlow()),
+            AtmosBC(),
+        ),
+        init_state_prognostic = init_Riemann!,
+    )
 
     _C_smag = FT(C_smag(param_set))
     model = AtmosModel{FT}(
         AtmosLESConfigType,                            # Flow in a box, requires the AtmosLESConfigType
         param_set;                                     # Parameter set corresponding to earth parameters
-        init_state_prognostic = init_risingbubble!,    # Apply the initial condition
-        ref_state = ref_state,                         # Reference state
-        turbulence = SmagorinskyLilly(_C_smag),        # Turbulence closure model
-        moisture = DryModel(),                         # Exclude moisture variables
-        source = (Gravity(),),                         # Gravity is the only source term here
-        tracers = NTracers{ntracers, FT}(δ_χ),         # Tracer model with diffusivity coefficients
+	problem = problem,
+        init_state_prognostic = init_Riemann!,    # Apply the initial condition
+        ref_state = NoReferenceState(),#ref_state,                         # Reference state
+        turbulence = SmagorinskyLilly(FT(0)),#_C_smag),        # Turbulence closure model
+        moisture = EquilMoist{FT}(),#DryModel(),                         # Exclude moisture variables
+        #source = (Gravity(),),                         # Gravity is the only source term here
+        #tracers = NTracers{ntracers, FT}(δ_χ),         # Tracer model with diffusivity coefficients
     )
 
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "DryRisingBubble",       # Problem title [String]
+        "2_Roe_HH",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
         ymax,                    # Domain maximum size [m]
         zmax,                    # Domain maximum size [m]
+	xmin = xmin,
         param_set,               # Parameter set.
-        init_risingbubble!,      # Function specifying initial condition
+        init_Riemann!,      # Function specifying initial condition
         solver_type = ode_solver,# Time-integrator type
         model = model,           # Model type
+	periodicity = (false, false, false),
+        boundary = ((1,1),(2,2),(2,2)),
+	numerical_flux_first_order = RoeNumericalFluxMoist(),
     )
     return config
 end
@@ -285,23 +270,24 @@ function main()
     ## random seeds, spline interpolants and other special functions at the
     ## initialization step.)
     N = 4
-    Δh = FT(125)
-    Δv = FT(125)
-    resolution = (Δh, Δh, Δv)
-    xmax = FT(10000)
-    ymax = FT(500)
-    zmax = FT(10000)
+    Δh = FT(0.01)
+    Δv = FT(0.125)
+    resolution = (Δh, Δv, Δv)
+    xmax = FT(0.5)
+    xmin = FT(-0.5)
+    ymax = FT(0.5)
+    zmax = FT(0.5)
     t0 = FT(0)
-    timeend = FT(1000)
+    timeend = FT(0.001)
 
     ## Use up to 20 if ode_solver is the multi-rate LRRK144.
     ## CFL = FT(15)
 
     ## Use up to 1.7 if ode_solver is the single rate LSRK144.
-    CFL = FT(1.7)
+    CFL = FT(0.1)
 
     ## Assign configurations so they can be passed to the `invoke!` function
-    driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
+    driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
         timeend,

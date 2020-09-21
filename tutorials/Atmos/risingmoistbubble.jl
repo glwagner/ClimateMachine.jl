@@ -110,7 +110,7 @@ const param_set = EarthParameterSet();
 ##     - `state.tracers.ρχ` = Vector of four tracers (here, for demonstration
 ##       only; we can interpret these as dye injections for visualization
 ##       purposes)
-function init_risingbubble!(bl, state, aux, (x, y, z), t)
+function init_risingbubble!(problem, bl, state, aux, (x, y, z), t)
     ## Problem float-type
     FT = eltype(state)
 
@@ -192,9 +192,9 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## `ode_solver`.
     ## The 1D-IMEX method is less appropriate for the problem given the current
     ## mesh aspect ratio (1:1).
-    ode_solver = ClimateMachine.ExplicitSolverType(
-        solver_method = LSRK144NiegemannDiehlBusch,
-    )
+    #ode_solver = ClimateMachine.ExplicitSolverType(
+     #   solver_method = LSRK144NiegemannDiehlBusch,
+    #)
     ## If the user prefers a multi-rate explicit time integrator,
     ## the ode_solver above can be replaced with
     ##
@@ -222,7 +222,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     T_surface = FT(300)
     T_min_ref = FT(0)
     T_profile = DryAdiabaticProfile{FT}(param_set, T_surface, T_min_ref)
-    ref_state = HydrostaticState(T_profile)
+    ref_state = HydrostaticState(T_profile, FT(0.1))
 
     ## The fun part! Here we assemble the `AtmosModel`.
     ## !!! note
@@ -248,7 +248,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "moistRisingBubble_sound_type2_LM",       # Problem title [String]
+        "moistRisingBubble_anisotropic",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -256,9 +256,9 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
         zmax,                    # Domain maximum size [m]
         param_set,               # Parameter set.
         init_risingbubble!,      # Function specifying initial condition
-        solver_type = ode_solver,# Time-integrator type
+        #solver_type = ode_solver,# Time-integrator type
         model = model,# Model type
-	numerical_flux_first_order = RoeNumericalFlux(),
+	numerical_flux_first_order = RoeNumericalFluxMoist(),
     )
     return config
 end
@@ -294,19 +294,19 @@ function main()
     ## initialization step.)
     N = 4
     Δh = FT(125)
-    Δv = FT(125)
+    Δv = FT(25)
     resolution = (Δh, Δh, Δv)
     xmax = FT(10000)
     ymax = FT(500)
     zmax = FT(20000)
     t0 = FT(0)
-    timeend = FT(1000)
+    timeend = FT(2000)
 
     ## Use up to 20 if ode_solver is the multi-rate LRRK144.
     ## CFL = FT(15)
 
     ## Use up to 1.7 if ode_solver is the single rate LSRK144.
-    CFL = FT(1.6)
+    CFL = FT(0.3)
 
     ## Assign configurations so they can be passed to the `invoke!` function
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)

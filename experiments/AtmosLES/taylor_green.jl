@@ -84,7 +84,7 @@ function init_greenvortex!(problem, bl, state, aux, (x, y, z), t)
     e_pot = FT(0)# potential energy
     Pinf = 101325
     Uzero = FT(100)
-    p = Pinf + (ρ * Uzero / 16) * (2 + cos(z)) * (cos(x) + cos(y))
+    p = Pinf + (ρ * Uzero^2 / 16) * (2 + cos(z)) * (cos(x) + cos(y))
     u = Uzero * sin(x) * cos(y) * cos(z)
     v = -Uzero * cos(x) * sin(y) * cos(z)
     e_kin = 0.5 * (u^2 + v^2)
@@ -95,6 +95,7 @@ function init_greenvortex!(problem, bl, state, aux, (x, y, z), t)
     state.ρ = ρ
     state.ρu = SVector(FT(ρ * u), FT(ρ * v), FT(0))
     state.ρe = ρe_tot
+    state.moisture.ρq_tot = FT(0)
 end
 
 # Set up AtmosLESConfiguration for the experiment
@@ -116,7 +117,7 @@ function config_greenvortex(
         ref_state = NoReferenceState(),
         orientation = NoOrientation(),
         turbulence = Vreman(_C_smag),       # Turbulence closure model
-        moisture = DryModel(),
+        moisture = EquilMoist{FT}(),#DryModel(),
         source = (),
     )
 
@@ -136,6 +137,7 @@ function config_greenvortex(
         zmin = zmin,
         solver_type = ode_solver,       # Time-integrator type
         model = model,                  # Model type
+	#numerical_flux_first_order = RoeNumericalFluxMoist(),
     )
     return config
 end
@@ -206,7 +208,7 @@ function main()
     zmax = FT(pi)
     # Simulation time
     t0 = FT(0)
-    timeend = FT(0.1)
+    timeend = FT(1)
     CFL = FT(1.8)
 
     driver_config = config_greenvortex(
@@ -236,8 +238,8 @@ function main()
     )
 
     check_cons = (
-        ClimateMachine.ConservationCheck("ρ", "100steps", FT(0.0001)),
-        ClimateMachine.ConservationCheck("ρe", "100steps", FT(0.0025)),
+        ClimateMachine.ConservationCheck("ρ", "0.1ssecs", FT(0.0001)),
+        ClimateMachine.ConservationCheck("ρe", "0.1ssecs", FT(0.0025)),
     )
 
     result = ClimateMachine.invoke!(

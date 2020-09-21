@@ -1,6 +1,6 @@
 module Atmos
 
-export AtmosModel, AtmosAcousticLinearModel, AtmosAcousticGravityLinearModel, RoeNumericalFlux
+export AtmosModel, AtmosAcousticLinearModel, AtmosAcousticGravityLinearModel, RoeNumericalFlux, RoeNumericalFluxMoist
 
 using CLIMAParameters
 using CLIMAParameters.Planet: grav, cp_d, R_v, LH_v0, e_int_v0
@@ -73,7 +73,7 @@ import ..DGMethods.NumericalFluxes:
     CentralNumericalFluxDivergence,
     CentralNumericalFluxFirstOrder,
     numerical_flux_first_order!
-using ..DGMethods.NumericalFluxes: RoeNumericalFlux
+using ..DGMethods.NumericalFluxes: RoeNumericalFlux, RoeNumericalFluxMoist
 
 import ..Courant: advective_courant, nondiffusive_courant, diffusive_courant
 
@@ -905,7 +905,6 @@ function RoeAverage(ρ⁻, ρ⁺, x⁻, x⁺)
     return (sqrt(ρ⁻) * x⁻ + sqrt(ρ⁺) * x⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
 end
 
-struct RoeNumericalFluxMoist <: NumericalFluxFirstOrder end
 function numerical_flux_first_order!(
     numerical_flux::RoeNumericalFluxMoist,
     balance_law::AtmosModel,
@@ -1006,12 +1005,12 @@ function numerical_flux_first_order!(
         balance_law.moisture.maxiter,
         balance_law.moisture.tolerance,
     )=#
-    #c̃ = sqrt(RoeAverage(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
+    c̃ = sqrt(RoeAverage(ρ⁻, ρ⁺, c⁻^2, c⁺^2))
     _cv_m = cv_m(ts)
     R_m = gas_constant_air(ts)
     _cp_m = cp_m(ts)
     gamma = _cp_m / _cv_m
-    c̃ = sqrt((gamma - 1) * (h̃ - 0.5 * ũ' * ũ))
+    #c̃ = sqrt((gamma - 1) * (h̃ - 0.5 * ũ' * ũ))
     #_cv_m⁻ = cv_m(ts⁻)
     #_cv_m⁺ = cv_m(ts⁺)
     #_cv_m = RoeAverage(ρ⁻, ρ⁺, _cv_m⁻, _cv_m⁺)    
@@ -1033,26 +1032,26 @@ function numerical_flux_first_order!(
     Mach⁻ = sqrt(u⁻' * u⁻) / c⁻
     Mach = (Mach⁺ + Mach⁻) /2 #RoeAverage(ρ⁻, ρ⁺, Mach⁻, Mach⁺)
     Mcut = FT(0)
-    c̃_LM = c̃ * min(Mach * sqrt(4 + (1 - Mach^2)^2) / (1 + Mach^2), 1) #max(min(Mach,1), Mcut)
+    c̃_LM = c̃ #* min(Mach * sqrt(4 + (1 - Mach^2)^2) / (1 + Mach^2), 1) #max(min(Mach,1), Mcut)
     #Standard Roe
-    Λ = SDiagonal(
+    #=Λ = SDiagonal(
         abs(ũᵀn - c̃_LM),
         abs(ũᵀn),
         abs(ũᵀn),
         abs(ũᵀn),
         abs(ũᵀn + c̃_LM),
 	abs(ũᵀn),
-    )
+    )=#
     
     #Harten Hyman Fix 1
-    #=Λ = SDiagonal(
+    Λ = SDiagonal(
         max(abs(ũᵀn - c̃_LM),max(0, ũᵀn - c̃_LM - (u⁻' * normal_vector - c⁻), u⁺' * normal_vector - c⁺ - (ũᵀn - c̃_LM))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
 	max(abs(ũᵀn + c̃_LM),max(0, ũᵀn + c̃_LM - (u⁻' * normal_vector + c⁻), u⁺' * normal_vector + c⁺ - (ũᵀn + c̃_LM))),
 	max(abs(ũᵀn),max(0, ũᵀn - (u⁻' * normal_vector), u⁺' * normal_vector - (ũᵀn))),
-    )=#
+    )
 
     #Pseudo LeVeque Fix
     #=δ_L_1 = max(0, ũᵀn - ũᵀn⁻)
