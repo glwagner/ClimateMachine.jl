@@ -52,7 +52,7 @@ x1 = ones(typeof(1.0), 3);
 x2 = ones(typeof(1.0), 3);
 x = [x1 x2];
 
-iters = linearsolve!(linear_operator!, linearsolver, x, b)
+iters = linearsolve!(linear_operator!, nothing, linearsolver, x, b)
 
 x
 
@@ -122,6 +122,7 @@ gmres = BatchedGeneralizedMinimalResidual(
 
 iters = linearsolve!(
     columnwise_linear_operator!,
+    nothing,
     gmres,
     x,
     b,
