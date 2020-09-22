@@ -116,7 +116,7 @@ function init_Riemann!(problem, bl, state, aux, (x, y, z), t)
     param = bl.param_set
     ## Assign State Variables
     ##Test2
-    if (x<0)
+    #=if (x<0)
       state.ρ = FT(1)
       state.ρu = SVector{3,FT}(-2, 0, 0)
       state.ρe = FT(3)
@@ -126,23 +126,24 @@ function init_Riemann!(problem, bl, state, aux, (x, y, z), t)
       state.ρu = SVector{3,FT}(2, 0, 0)
       state.ρe = FT(3)
       state.moisture.ρq_tot = FT(0)
-    end
-    ## Test 3
-    #=if (x<0)
+    end=#
+    ## Test 1
+    if (x<0)
       state.ρ = FT(1)
       state.ρu = SVector{3,FT}(0, 0, 0)
       p = FT(100000)
       T = air_temperature_from_ideal_gas_law(param, p, FT(1))
       state.ρe = internal_energy(param, T)
-      state.moisture.ρq_tot = FT(0)
+      #state.moisture.ρq_tot = FT(0)
     else
-      state.ρ = FT(1)
+      ρ = FT(0.125)
+      state.ρ = ρ
       state.ρu = SVector{3,FT}(0, 0, 0)
-      p = FT(10)
-      T = air_temperature_from_ideal_gas_law(param, p, FT(1))
-      state.ρe = internal_energy(param, T)
-      state.moisture.ρq_tot = FT(0)
-    end=#
+      p = FT(10000)
+      T = air_temperature_from_ideal_gas_law(param, p, ρ)
+      state.ρe = ρ * internal_energy(param, T)
+      #state.moisture.ρq_tot = FT(0)
+    end
 
 end
 
@@ -213,8 +214,8 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
 	problem = problem,
         init_state_prognostic = init_Riemann!,    # Apply the initial condition
         ref_state = NoReferenceState(),#ref_state,                         # Reference state
-        turbulence = SmagorinskyLilly(FT(0)),#_C_smag),        # Turbulence closure model
-        moisture = EquilMoist{FT}(),#DryModel(),                         # Exclude moisture variables
+        turbulence = ConstantDynamicViscosity(FT(100)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
+        moisture = DryModel(),                         # Exclude moisture variables
         #source = (Gravity(),),                         # Gravity is the only source term here
         #tracers = NTracers{ntracers, FT}(δ_χ),         # Tracer model with diffusivity coefficients
     )
@@ -222,7 +223,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "2_Roe_HH",       # Problem title [String]
+        "1",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -234,8 +235,8 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
         solver_type = ode_solver,# Time-integrator type
         model = model,           # Model type
 	periodicity = (false, false, false),
-        boundary = ((1,1),(2,2),(2,2)),
-	numerical_flux_first_order = RoeNumericalFluxMoist(),
+        boundary = ((2,2),(2,2),(2,2)),
+	#numerical_flux_first_order = RoeNumericalFlux(),
     )
     return config
 end
@@ -278,13 +279,13 @@ function main()
     ymax = FT(0.5)
     zmax = FT(0.5)
     t0 = FT(0)
-    timeend = FT(0.001)
+    timeend = FT(0.0002)
 
     ## Use up to 20 if ode_solver is the multi-rate LRRK144.
     ## CFL = FT(15)
 
     ## Use up to 1.7 if ode_solver is the single rate LSRK144.
-    CFL = FT(0.1)
+    CFL = FT(0.01)
 
     ## Assign configurations so they can be passed to the `invoke!` function
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
