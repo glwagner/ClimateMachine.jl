@@ -346,6 +346,34 @@ function numerical_flux_first_order!(
     fluxᵀn.ρe -= h̃ * ΔpL / 2c̃
 end
 
+
+function numerical_flux_first_order!(
+    ::HLLCNumericalFlux,
+    balance_law::AtmosLinearModel,
+    fluxᵀn::Vars{S},
+    normal_vector::SVector,
+    state_prognostic⁻::Vars{S},
+    state_auxiliary⁻::Vars{A},
+    state_prognostic⁺::Vars{S},
+    state_auxiliary⁺::Vars{A},
+    t,
+    direction,
+) where {S, A}
+    # There is no intermediate speed for the AtmosLinearModel.
+    # As a result, HLLC simplifies to Rusanov.
+    numerical_flux_first_order!(
+        RusanovNumericalFlux(),
+        balance_law,
+        fluxᵀn,
+        normal_vector,
+        state_prognostic⁻,
+        state_auxiliary⁻,
+        state_prognostic⁺,
+        state_auxiliary⁺,
+        t,
+        direction,
+    )
+end
 function RoeAverage(ρ⁻, ρ⁺, x⁻, x⁺)
     return (sqrt(ρ⁻) * x⁻ + sqrt(ρ⁺) * x⁺) / (sqrt(ρ⁻) + sqrt(ρ⁺))
 end
