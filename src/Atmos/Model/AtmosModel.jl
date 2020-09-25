@@ -1,6 +1,6 @@
 module Atmos
 
-export AtmosModel, AtmosAcousticLinearModel, AtmosAcousticGravityLinearModel, RoeNumericalFlux, RoeNumericalFluxMoist
+export AtmosModel, AtmosAcousticLinearModel, AtmosAcousticGravityLinearModel, HLLCNumericalFlux, RoeNumericalFlux, RoeNumericalFluxMoist
 
 using CLIMAParameters
 using CLIMAParameters.Planet: grav, cp_d, R_v, LH_v0, e_int_v0
@@ -941,16 +941,11 @@ function numerical_flux_first_order!(
     ρq_tot⁻ = state_conservative⁻.moisture.ρq_tot
     
     u⁻ = ρu⁻ / ρ⁻
-    p⁻ = pressure(
-        balance_law,
-        balance_law.moisture,
-        state_conservative⁻,
-        state_auxiliary⁻,
-    )
-    h⁻ = total_specific_enthalpy(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
-    e⁻ = ρe⁻ / ρ⁻
+     e⁻ = ρe⁻ / ρ⁻
+    ts⁻ = recover_thermo_state(balance_law, state_conservative⁻, state_auxiliary⁻)
+    h⁻ = total_specific_enthalpy(ts⁻, e⁻)
     qt⁻ = ρq_tot⁻ / ρ⁻
-    c⁻ = soundspeed(balance_law, balance_law.moisture, state_conservative⁻, state_auxiliary⁻)
+    c⁻ = soundspeed_air(ts⁻)
 
     ρ⁺ = state_conservative⁺.ρ
     ρu⁺ = state_conservative⁺.ρu
@@ -958,16 +953,11 @@ function numerical_flux_first_order!(
     ρq_tot⁺ = state_conservative⁺.moisture.ρq_tot
 
     u⁺ = ρu⁺ / ρ⁺
-    p⁺ = pressure(
-        balance_law,
-        balance_law.moisture,
-        state_conservative⁺,
-        state_auxiliary⁺,
-    )
-    h⁺ = total_specific_enthalpy(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
     e⁺ = ρe⁺ / ρ⁺
+    ts⁺ = recover_thermo_state(balance_law, state_conservative⁺, state_auxiliary⁺)
+    h⁺ = total_specific_enthalpy(ts⁺, e⁺)
     qt⁺ = ρq_tot⁺ / ρ⁺
-    c⁺ = soundspeed(balance_law, balance_law.moisture, state_conservative⁺, state_auxiliary⁺)
+    c⁺ = soundspeed_air(ts⁺)
     ũ = RoeAverage(ρ⁻, ρ⁺, u⁻, u⁺)
     e_tot = RoeAverage(ρ⁻, ρ⁺, e⁻, e⁺)
     h̃ = RoeAverage(ρ⁻, ρ⁺, h⁻, h⁺)
@@ -1028,7 +1018,7 @@ function numerical_flux_first_order!(
     Mach⁻ = sqrt(u⁻' * u⁻) / c⁻
     Mach = (Mach⁺ + Mach⁻) /2 #RoeAverage(ρ⁻, ρ⁺, Mach⁻, Mach⁺)
     Mcut = FT(0)
-    c̃_LM = c̃ * min(Mach * sqrt(4 + (1 - Mach^2)^2) / (1 + Mach^2), 1) #max(min(Mach,1), Mcut)
+    c̃_LM = c̃ #* min(Mach * sqrt(4 + (1 - Mach^2)^2) / (1 + Mach^2), 1) #max(min(Mach,1), Mcut)
     #Standard Roe
     Λ = SDiagonal(
         abs(ũᵀn - c̃_LM),
