@@ -230,7 +230,7 @@ function main()
     # expect perfect energy conservation.
 end
 
-main()
+main();
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 
