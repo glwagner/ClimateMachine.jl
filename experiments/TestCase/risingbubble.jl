@@ -1,5 +1,6 @@
 #!/usr/bin/env julia --project
 using ArgParse
+using MPI
 
 using ClimateMachine
 using ClimateMachine.Atmos
@@ -12,6 +13,9 @@ using ClimateMachine.TemperatureProfiles
 using ClimateMachine.Thermodynamics
 using ClimateMachine.TurbulenceClosures
 using ClimateMachine.VariableTemplates
+
+import ClimateMachine.BalanceLaws: Prognostic, vars_state
+
 using StaticArrays
 using Test
 using CLIMAParameters
