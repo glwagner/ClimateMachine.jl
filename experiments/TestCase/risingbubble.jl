@@ -15,6 +15,7 @@ using ClimateMachine.TurbulenceClosures
 using ClimateMachine.VariableTemplates
 
 import ClimateMachine.BalanceLaws: Prognostic, vars_state
+import ClimateMachine.Callbacks
 
 using StaticArrays
 using Test
@@ -242,9 +243,8 @@ function main()
     # chatter in terminal
     cb_updates = Callbacks.show_updates("60secs", solver_config, () -> nothing)
 
-
-    max_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
-    min_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
+    #max_ρq_tot_init = maximum(state_prognostic, ρq_tot_idx)
+    #min_ρq_tot_init = maximum(state_prognostic, ρq_tot_idx)
     ∫ρq_tot_init = weightedsum(state_prognostic, ρq_tot_idx)
 
     result = ClimateMachine.invoke!(
@@ -254,8 +254,8 @@ function main()
         check_euclidean_distance = true,
     )
 
-    max_ρq_tot_fini = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
-    min_ρq_tot_fini = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
+    #max_ρq_tot_fini = maximum(state_prognostic, ρq_tot_idx)
+    #min_ρq_tot_fini = maximum(state_prognostic, ρq_tot_idx)
     ∫ρq_tot_fini = weightedsum(state_prognostic, ρq_tot_idx)
 
     @info("  ")
