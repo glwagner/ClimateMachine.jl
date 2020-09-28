@@ -251,7 +251,7 @@ function main()
     result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
-        user_callbacks = (cb_tmar_filter, cb_vtk, cb_updates()),
+        user_callbacks = (cb_tmar, cb_vtk),
         check_euclidean_distance = true,
     )
 
