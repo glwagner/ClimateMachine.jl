@@ -16,6 +16,7 @@ using ClimateMachine.VariableTemplates
 
 import ClimateMachine.BalanceLaws: Prognostic, vars_state
 import ClimateMachine.Callbacks
+import ClimateMachine.MPIStateArrays: weightedsum
 
 using StaticArrays
 using Test
