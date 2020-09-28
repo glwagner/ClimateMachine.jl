@@ -214,67 +214,49 @@ function main()
     )
 
     # TMAR filter (without MPP)
-    cb_tmar_filter =
-        GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
+    cb_tmar = EveryXSimulationSteps(1) do
+        if odesolver isa MPPSolver
             Filters.apply!(
-                solver_config.Q,
-                (:ρq_tot),
-                solver_config.dg.grid,
-                TMARFilter(),
+                state_prognostic,
+                ("moisture.ρq_tot",),
+                dg.grid,
+                Filters.TMARFilter(),
             )
-            nothing
         end
+        nothing
+    end
 
     # vtk output
-    mpicomm = MPI.COMM_WORLD
-    # initialize base output prefix directory from rank 0
-    vtkdir = abspath(joinpath(ClimateMachine.Settings.output_dir, "vtk"))
-    if MPI.Comm_rank(mpicomm) == 0
-        mkpath(vtkdir)
+    output_dir = "output"
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        mkpath(output_dir)
     end
-    MPI.Barrier(mpicomm)
-    vtkstep = [0]
-    cb_vtk =
-        GenericCallbacks.EveryXSimulationSteps(output_freq) do (init = false)
-            out_dirname = @sprintf(
-                "RTB_mpirank%04d_step%04d",
-                MPI.Comm_rank(mpicomm),
-                vtkstep[1]
-            )
-            out_path_prefix = joinpath(vtkdir, out_dirname)
-            @info "doing VTK output" out_path_prefix
-            writevtk(
-                out_path_prefix,
-                solver_config.Q,
-                solver_config.dg,
-                flattenednames(vars_state(model, Prognostic(), FT)),
-                solver_config.dg.state_auxiliary,
-                flattenednames(vars_state(model, Auxiliary(), FT)),
-            )
-            vtkstep[1] += 1
-            nothing
-        end
+    cb_vtk = Callbacks.vtk("100steps", solver_config, output_dir, 0)
 
+    # chatter in terminal
+    cb_updates = Callbacks.show_updates("60secs", solver_config, () -> nothing)
+
+
+    max_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
+    min_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
+    ∫ρq_tot_init = weightedsum(state_prognostic, ρq_tot_idx)
 
     result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
-        user_callbacks = (cb_tmar_filter, cb_vtk),
+        user_callbacks = (cb_tmar_filter, cb_vtk, cb_updates()),
         check_euclidean_distance = true,
     )
 
-    max_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_ind, :])
-    min_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_ind, :])
-    ∫ρq_tot_init = weightedsum(state_prognostic, ρq_tot_idx)
-
-    solve!(
-        state_prognostic,
-        odesolver;
-        timeend = timeend,
-        callbacks = (cb_tmar, cb_vtk),
-    )
-
+    max_ρq_tot_fini = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
+    min_ρq_tot_fini = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_idx, :])
     ∫ρq_tot_fini = weightedsum(state_prognostic, ρq_tot_idx)
+
+    @info("  ")
+    @info(max_ρq_tot_init, max_ρq_tot_fini)
+    @info(min_ρq_tot_init, min_ρq_tot_fini)
+
+    @info(∫ρq_tot_init, ∫ρq_tot_finit)
 
     #@test isapprox(result, FT(1); atol = 1.5e-3)
 end
