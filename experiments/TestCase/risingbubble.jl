@@ -190,10 +190,11 @@ function main()
     ymax = FT(500)
     zmax = FT(10000)
     t0 = FT(0)
-    timeend = FT(1000)
+    timeend = FT(10) #FT(1000)
 
     CFL = FT(1.7)
 
+    # config mystery
     driver_config =
         config_risingbubble(FT, N, resolution, xmax, ymax, zmax, with_moisture)
     solver_config = ClimateMachine.SolverConfiguration(
@@ -206,8 +207,13 @@ function main()
     dgn_config = config_diagnostics(driver_config)
     model = driver_config.bl
 
-    ρq_tot_ind = varsindex(vars_state(model, Prognostic(), FT), :ρq_tot)
+    # label for ρq_tot prognostic var
+    ρq_tot_idx = varsindices(
+        vars_state(dg.balance_law, Prognostic(), FT),
+        "moisture.ρq_tot",
+    )
 
+    # TMAR filter (without MPP)
     cb_tmar_filter =
         GenericCallbacks.EveryXSimulationSteps(1) do (init = false)
             Filters.apply!(
@@ -219,6 +225,7 @@ function main()
             nothing
         end
 
+    # vtk output
     mpicomm = MPI.COMM_WORLD
     # initialize base output prefix directory from rank 0
     vtkdir = abspath(joinpath(ClimateMachine.Settings.output_dir, "vtk"))
@@ -226,7 +233,6 @@ function main()
         mkpath(vtkdir)
     end
     MPI.Barrier(mpicomm)
-
     vtkstep = [0]
     cb_vtk =
         GenericCallbacks.EveryXSimulationSteps(output_freq) do (init = false)
@@ -249,6 +255,7 @@ function main()
             nothing
         end
 
+
     result = ClimateMachine.invoke!(
         solver_config;
         diagnostics_config = dgn_config,
@@ -256,8 +263,18 @@ function main()
         check_euclidean_distance = true,
     )
 
-   max_ρq_tot = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_ind, :])
-   min_ρq_tot = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_ind, :])
+    max_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_ind, :])
+    min_ρq_tot_init = maximum(solver_config.dg.state_auxiliary[:, ρq_tot_ind, :])
+    ∫ρq_tot_init = weightedsum(state_prognostic, ρq_tot_idx)
+
+    solve!(
+        state_prognostic,
+        odesolver;
+        timeend = timeend,
+        callbacks = (cb_tmar, cb_vtk),
+    )
+
+    ∫ρq_tot_fini = weightedsum(state_prognostic, ρq_tot_idx)
 
     #@test isapprox(result, FT(1); atol = 1.5e-3)
 end
