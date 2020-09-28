@@ -206,6 +206,8 @@ function main()
     )
     dgn_config = config_diagnostics(driver_config)
     model = driver_config.bl
+    state_prognostic = solver_config.Q
+    dg = solver_config.dg
 
     # label for ρq_tot prognostic var
     ρq_tot_idx = varsindices(
