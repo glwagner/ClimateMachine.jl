@@ -17,6 +17,7 @@ using ClimateMachine.VariableTemplates
 import ClimateMachine.BalanceLaws: Prognostic, vars_state
 import ClimateMachine.Callbacks
 import ClimateMachine.MPIStateArrays: weightedsum
+import ClimateMachine.Mesh.Filters
 
 using StaticArrays
 using Test
@@ -221,6 +222,11 @@ function main()
         "moisture.ρq_tot",
     )
 
+    #index = varsindices(
+    #    vars_state(dg.balance_law, Prognostic(), FT),
+    #    fieldnames("moisture.ρ_qt")
+    #)
+
     # TMAR filter (without MPP)
     cb_tmar = EveryXSimulationSteps(1) do
             Filters.apply!(
@@ -242,8 +248,7 @@ function main()
     # chatter in terminal
     cb_updates = Callbacks.show_updates("60secs", solver_config, () -> nothing)
 
-    #max_ρq_tot_init = maximum(state_prognostic, ρq_tot_idx)
-    #min_ρq_tot_init = maximum(state_prognostic, ρq_tot_idx)
+    #extrema_init = extrema(state_prognostic.data[:, ρq_tot_idx, :])
     ∫ρq_tot_init = weightedsum(state_prognostic, ρq_tot_idx)
 
     result = ClimateMachine.invoke!(
@@ -253,15 +258,12 @@ function main()
         check_euclidean_distance = true,
     )
 
-    #max_ρq_tot_fini = maximum(state_prognostic, ρq_tot_idx)
-    #min_ρq_tot_fini = maximum(state_prognostic, ρq_tot_idx)
+    #extrema_fini = extrema(state_prognostic.data[:, ρq_tot_idx, :])
     ∫ρq_tot_fini = weightedsum(state_prognostic, ρq_tot_idx)
 
     @info("  ")
-    @info(max_ρq_tot_init, max_ρq_tot_fini)
-    @info(min_ρq_tot_init, min_ρq_tot_fini)
-
-    @info(∫ρq_tot_init, ∫ρq_tot_finit)
+    #@info(extrema_init, extrema_fini)
+    @info(∫ρq_tot_init, ∫ρq_tot_fini)
 
     #@test isapprox(result, FT(1); atol = 1.5e-3)
 end
