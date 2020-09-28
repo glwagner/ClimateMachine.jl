@@ -223,14 +223,12 @@ function main()
 
     # TMAR filter (without MPP)
     cb_tmar = EveryXSimulationSteps(1) do
-        if odesolver isa MPPSolver
             Filters.apply!(
                 state_prognostic,
                 ("moisture.ρq_tot",),
                 dg.grid,
                 Filters.TMARFilter(),
             )
-        end
         nothing
     end
 
