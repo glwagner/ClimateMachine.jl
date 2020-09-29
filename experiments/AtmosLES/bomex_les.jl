@@ -30,14 +30,14 @@ function main()
     # DG polynomial order
     N = 4
     # Domain resolution and size
-    Δh = FT(100)
-    Δv = FT(40)
+    Δh = FT(50)
+    Δv = FT(20)
 
     resolution = (Δh, Δh, Δv)
 
     # Prescribe domain parameters
-    xmax = FT(6400)
-    ymax = FT(6400)
+    xmax = FT(8500)
+    ymax = FT(8500)
     zmax = FT(3000)
 
     t0 = FT(0)
@@ -49,8 +49,10 @@ function main()
     CFLmax = FT(0.90)
 
     # Choose default IMEX solver
-    ode_solver_type = ClimateMachine.IMEXSolverType()
-
+    #ode_solver_type = ClimateMachine.IMEXSolverType()
+    ode_solver_type = ClimateMachine.ExplicitSolverType(
+        solver_method = LSRK144NiegemannDiehlBusch,
+    )
     model = bomex_model(
         FT,
         config_type,

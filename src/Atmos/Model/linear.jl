@@ -413,14 +413,16 @@ function numerical_flux_first_order!(
     ref_ρe⁻ = state_auxiliary⁻.ref_state.ρe
     ref_T⁻ = state_auxiliary⁻.ref_state.T
     ref_q⁻ = state_auxiliary⁻.ref_state.ρq_tot / ref_ρ⁻
+    ref_qliq⁻ = state_auxiliary⁻.ref_state.ρq_liq / ref_ρ⁻
+    ref_qice⁻ = state_auxiliary⁻.ref_state.ρq_ice / ref_ρ⁻
     ref_p⁻ = state_auxiliary⁻.ref_state.p
     #ref_h⁻ = (ref_ρe⁻ + ref_p⁻) / ref_ρ⁻
-    q_pt⁻ = PhasePartition(ref_q⁻)
+    q_pt⁻ = PhasePartition(ref_q⁻, ref_qliq⁻, ref_qice⁻)
     _R_m⁻ = gas_constant_air(param_set, q_pt⁻)
     ref_h⁻ = total_specific_enthalpy(ref_ρe⁻, _R_m⁻, ref_T⁻)
 
     ref_c⁻ = soundspeed_air(param_set, ref_T⁻, q_pt⁻)
-
+    
     pL⁻ = linearized_pressure(
         atmos.moisture,
         param_set,
@@ -435,9 +437,11 @@ function numerical_flux_first_order!(
     ref_ρe⁺ = state_auxiliary⁺.ref_state.ρe
     ref_T⁺ = state_auxiliary⁺.ref_state.T
     ref_q⁺ = state_auxiliary⁺.ref_state.ρq_tot / ref_ρ⁺
+    ref_qliq⁺ = state_auxiliary⁺.ref_state.ρq_liq / ref_ρ⁺
+    ref_qice⁺ = state_auxiliary⁺.ref_state.ρq_ice / ref_ρ⁺
     ref_p⁺ = state_auxiliary⁺.ref_state.p
     #ref_h⁺ = (ref_ρe⁺ + ref_p⁺) / ref_ρ⁺
-    q_pt⁺ = PhasePartition(ref_q⁺)
+    q_pt⁺ = PhasePartition(ref_q⁺, ref_qliq⁺, ref_qice⁺)
     _R_m⁺ = gas_constant_air(param_set, q_pt⁺)
     ref_h⁺ = total_specific_enthalpy(ref_ρe⁺, _R_m⁺, ref_T⁺)
     ref_c⁺ = soundspeed_air(param_set, ref_T⁺, q_pt⁺)
@@ -450,13 +454,64 @@ function numerical_flux_first_order!(
     )
 
     # not sure if arithmetic averages are a good idea here
-    h̃ = RoeAverage(ref_ρ⁻,ref_ρ⁺,ref_h⁻, ref_h⁺)#(ref_h⁻ + ref_h⁺) / 2
-    c̃ = sqrt(RoeAverage(ref_ρ⁻,ref_ρ⁺,ref_c⁻^2, ref_c⁺^2))#(ref_c⁻ + ref_c⁺) / 2
+    h̃ = (ref_h⁻ + ref_h⁺) / 2
+    c̃ = (ref_c⁻ + ref_c⁺) / 2
+    qt = (ref_q⁺ + ref_q⁻) / 2
     
     ΔpL = pL⁺ - pL⁻
     Δρuᵀn = (ρu⁺ - ρu⁻)' * normal_vector
 
-    fluxᵀn.ρ -= ΔpL / 2c̃
-    fluxᵀn.ρu -= c̃ * Δρuᵀn * normal_vector / 2
-    fluxᵀn.ρe -= h̃ * ΔpL / 2c̃
+    #fluxᵀn.ρ -= ΔpL / 2c̃
+    #fluxᵀn.ρu -= c̃ * Δρuᵀn * normal_vector / 2
+    #fluxᵀn.ρe -= h̃ * ΔpL / 2c̃
+    
+    #temp1 = ΔpL / 2c̃
+    #temp2 = c̃ * Δρuᵀn * normal_vector / 2
+    #temp3 = h̃ * ΔpL / 2c̃
+ 
+   
+
+    _T_0::Float64 = T_0(param_set)
+    _e_int_v0 = e_int_v0(param_set)
+    _cv_d = cv_d(param_set)
+    Φ = gravitational_potential(balance_law.atmos, state_auxiliary⁻)
+    # guaranteed to be random
+    ω = Float64(π) / 3
+    δ = Float64(π) / 5
+    random_unit_vector = SVector(sin(ω) * cos(δ), cos(ω) * cos(δ), sin(δ))
+    # tangent space basis
+    τ1 = random_unit_vector × normal_vector
+    τ2 = τ1 × normal_vector
+
+
+    ũc̃⁻ = c̃ * normal_vector
+    ũc̃⁺ = - c̃ * normal_vector
+    Λ = SDiagonal(
+        abs(0 - c̃),
+        abs(0),
+        abs(0),
+        abs(0),
+        abs(0 + c̃),
+        abs(0),
+    )
+    M = hcat(                                                                     
+        SVector(1, ũc̃⁺[1], ũc̃⁺[2], ũc̃⁺[3], h̃, qt),                      
+        SVector(0, τ1[1], τ1[2], τ1[3], 0, 0),                              
+        SVector(0, τ2[1], τ2[2], τ2[3], 0, 0),                              
+        SVector(1, 0, 0, 0, Φ - _T_0 * _cv_d, 0),           
+        SVector(1, ũc̃⁻[1], ũc̃⁻[2], ũc̃⁻[3], h̃, qt),                      
+        SVector(0, 0, 0, 0, _e_int_v0, 1)                                         
+    )                                                                             
+    Δρ = state_prognostic⁺.ρ - state_prognostic⁻.ρ                                                                  
+    Δρu = ρu⁺ - ρu⁻                                                               
+    Δρe = state_prognostic⁺.ρe - state_prognostic⁻.ρe                                                               
+    Δρq_tot = state_prognostic⁺.moisture.ρq_tot - state_prognostic⁻.moisture.ρq_tot                                                
+    Δstate = SVector(Δρ, Δρu[1], Δρu[2], Δρu[3], Δρe, Δρq_tot)                   
+                                                                                  
+    parent(fluxᵀn) .-= M * Λ * (M \ Δstate) / 2  
+    #temp = M * Λ * (M \ Δstate) / 2
+    #temp1 = ΔpL / 2c̃
+    #temp2 = c̃ * Δρuᵀn * normal_vector / 2
+    #temp3 = h̃ * ΔpL / 2c̃
+    #@info temp, temp1, temp2, temp3, state_prognostic⁺.moisture.ρq_tot, state_prognostic⁻.moisture.ρq_tot
 end

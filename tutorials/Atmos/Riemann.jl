@@ -214,16 +214,16 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
 	problem = problem,
         init_state_prognostic = init_Riemann!,    # Apply the initial condition
         ref_state = NoReferenceState(),#ref_state,                         # Reference state
-        turbulence = ConstantDynamicViscosity(FT(2e-4)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
+        turbulence = ConstantDynamicViscosity(FT(1e-2)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
         moisture = DryModel(),                         # Exclude moisture variables
-        #source = (Gravity(),),                         # Gravity is the only source term here
+        source = (),                         # Gravity is the only source term here
         #tracers = NTracers{ntracers, FT}(δ_χ),         # Tracer model with diffusivity coefficients
     )
 
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "1_HLLC",       # Problem title [String]
+        "1_Rus",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -236,7 +236,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
         model = model,           # Model type
 	periodicity = (false, true, true),
         boundary = ((1,2),(2,2),(2,2)),
-	numerical_flux_first_order = HLLCNumericalFlux(),
+	#numerical_flux_first_order = RoeNumericalFlux(),
     )
     return config
 end
@@ -279,7 +279,7 @@ function main()
     ymax = FT(0.5)
     zmax = FT(0.5)
     t0 = FT(0)
-    timeend = FT(0.0001)
+    timeend = FT(0.001)
 
     ## Use up to 20 if ode_solver is the multi-rate LRRK144.
     ## CFL = FT(15)
