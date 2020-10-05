@@ -214,7 +214,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
 	problem = problem,
         init_state_prognostic = init_Riemann!,    # Apply the initial condition
         ref_state = NoReferenceState(),#ref_state,                         # Reference state
-        turbulence = ConstantDynamicViscosity(FT(1e-2)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
+        turbulence = ConstantDynamicViscosity(FT(3e-2)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
         moisture = DryModel(),                         # Exclude moisture variables
         source = (),                         # Gravity is the only source term here
         #tracers = NTracers{ntracers, FT}(δ_χ),         # Tracer model with diffusivity coefficients
@@ -223,7 +223,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "1_Rus",       # Problem title [String]
+        "1_Rus_N10",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -270,9 +270,9 @@ function main()
     ## that forces problem initialization on CPU (thereby allowing the use of
     ## random seeds, spline interpolants and other special functions at the
     ## initialization step.)
-    N = 2
+    N = 10
     Δh = FT(0.0025)
-    Δv = FT(0.125)
+    Δv = FT(0.06125)
     resolution = (Δh, Δv, Δv)
     xmax = FT(0.5)
     xmin = FT(-0.5)

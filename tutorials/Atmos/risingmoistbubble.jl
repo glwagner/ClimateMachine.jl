@@ -300,13 +300,13 @@ function main()
     ymax = FT(500)
     zmax = FT(20000)
     t0 = FT(0)
-    timeend = FT(2000)
+    timeend = FT(3000)
 
     ## Use up to 20 if ode_solver is the multi-rate LRRK144.
     ## CFL = FT(15)
 
     ## Use up to 1.7 if ode_solver is the single rate LSRK144.
-    CFL = FT(0.3)
+    CFL = FT(0.5)
 
     ## Assign configurations so they can be passed to the `invoke!` function
     driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
