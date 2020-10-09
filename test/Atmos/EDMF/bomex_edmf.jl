@@ -101,7 +101,7 @@ function main(::Type{FT}) where {FT}
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(400)
+    timeend = FT(1000)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
@@ -112,7 +112,7 @@ function main(::Type{FT}) where {FT}
 
     N_updrafts = 1
     N_quad = 3
-    turbconv = EDMF(FT, N_updrafts, N_quad)
+    turbconv = EDMF(FT, N_updrafts, N_quad, zmax)
 
     model =
         bomex_model(FT, config_type, zmax, surface_flux; turbconv = turbconv)
@@ -135,7 +135,7 @@ function main(::Type{FT}) where {FT}
         driver_config,
         init_on_cpu = true,
         Courant_number = CFLmax,
-        fixed_number_of_steps = 1000,
+        # fixed_number_of_steps = 1000,
         # fixed_number_of_steps=1082 # last timestep before crash
     )
 

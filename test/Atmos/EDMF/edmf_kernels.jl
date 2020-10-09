@@ -332,6 +332,55 @@ function compute_gradient_flux!(
     tc_dif.S² = ∇transform.u[3, 1]^2 + ∇transform.u[3, 2]^2 + en_dif.∇w[3]^2
 end;
 
+function subdomain_sponge!(
+    m::EDMFSponge,
+    atmos::AtmosModel,
+    source::Vars,
+    state::Vars,
+    diffusive::Vars,
+    aux::Vars,
+    t::Real,
+    direction,
+)
+
+    # Aliases:
+    gm = state
+    up = state.turbconv.updraft
+    up_src = source.turbconv.updraft
+    N_up = n_updrafts(atmos.turbconv)
+
+    z_max = m.z_max
+    z_sponge = m.z_sponge
+    α_max = m.α_max
+    γ = m.γ
+
+    z = altitude(atmos, aux)
+    @unroll_map(N_up) do i
+        # Accumulate sources
+        if z_sponge <= z
+            a_up = up[i].ρa/gm.ρ
+            r = (z - z_sponge) / (z_max - z_sponge)
+            β_sponge = α_max * sinpi(r / 2)^m.γ
+            up_src[i].ρaw -= β_sponge * up[i].ρaw #(up[i].ρaw .- a_up*gm.ρu[3])
+        end
+    end
+
+    return nothing
+end
+
+function subdomain_sponge!(
+    s::NoSponge,
+    atmos::AtmosModel,
+    source::Vars,
+    state::Vars,
+    diffusive::Vars,
+    aux::Vars,
+    t::Real,
+    direction,
+)
+    return nothing
+end
+
 
 function turbconv_source!(
     m::AtmosModel{FT},
@@ -354,12 +403,22 @@ function turbconv_source!(
     en_dif = diffusive.turbconv.environment
     up_aux = aux.turbconv.updraft
 
+    subdomain_sponge!(
+                    m.turbconv.sponge,
+                    m,
+                    source,
+                    state,
+                    diffusive,
+                    aux,
+                    t,
+                    direction,
+                    )
+
     # Recover thermo states
     ts = recover_thermo_state_all(m, state, aux)
 
     # Get environment variables
     env = environment_vars(state, aux, N_up)
-
     εδ_up = ntuple(N_up) do i
         entr_detr(m, m.turbconv.entr_detr, state, aux, t, ts, env, i)
     end
@@ -380,12 +439,10 @@ function turbconv_source!(
     end
 
     @unroll_map(N_up) do i
-
         ρa_up_i = ρa_up[i]
         w_up_i = up[i].ρaw / ρa_up_i
         ρa_up_i_inv = FT(1) / ρa_up_i
-
-        # first moment sources - for now we compute these as aux variable
+        a_up_i_inv = ρa_up_i_inv*gm.ρ
         dpdz = perturbation_pressure(
             m,
             m.turbconv.pressure,
@@ -396,27 +453,35 @@ function turbconv_source!(
             env,
             i,
         )
+        if ρa_up_i*ρ_inv>a_min
 
-        # entrainment and detrainment
-        up_src[i].ρa += up[i].ρaw * (ε_dyn[i] - δ_dyn[i])
-        up_src[i].ρaw +=
-            up[i].ρaw *
-            ((ε_dyn[i] + ε_trb[i]) * env.w - (δ_dyn[i] + ε_trb[i]) * w_up_i)
-        up_src[i].ρaθ_liq +=
-            up[i].ρaw * (
-                (ε_dyn[i] + ε_trb[i]) * θ_liq_en -
-                (δ_dyn[i] + ε_trb[i]) * up[i].ρaθ_liq * ρa_up_i_inv
-            )
-        up_src[i].ρaq_tot +=
-            up[i].ρaw * (
-                (ε_dyn[i] + ε_trb[i]) * q_tot_en -
-                (δ_dyn[i] + ε_trb[i]) * up[i].ρaq_tot * ρa_up_i_inv
-            )
+            # entrainment and detrainment
+            up_src[i].ρa += up[i].ρaw * (ε_dyn[i] - δ_dyn[i])
+            up_src[i].ρaw +=
+                up[i].ρaw *
+                ((ε_dyn[i] + ε_trb[i]) * env.w - (δ_dyn[i] + ε_trb[i]) * w_up_i)
+            up_src[i].ρaθ_liq +=
+                up[i].ρaw * (
+                    (ε_dyn[i] + ε_trb[i]) * θ_liq_en -
+                    (δ_dyn[i] + ε_trb[i]) * up[i].ρaθ_liq * ρa_up_i_inv
+                )
+            up_src[i].ρaq_tot +=
+                up[i].ρaw * (
+                    (ε_dyn[i] + ε_trb[i]) * q_tot_en -
+                    (δ_dyn[i] + ε_trb[i]) * up[i].ρaq_tot * ρa_up_i_inv
+                )
 
-        # add buoyancy and perturbation pressure in subdomain w equation
-        up_src[i].ρaw += up[i].ρa * (up_aux[i].buoyancy - dpdz)
-        # microphysics sources should be applied here
-
+            # add buoyancy and perturbation pressure in subdomain w equation
+            up_src[i].ρaw += up[i].ρa * (up_aux[i].buoyancy - dpdz)
+        #   microphysics sources should be applied here
+        else
+            # if up[i].ρaw<FT(0)
+            up_src[i].ρa      -= FT(0)*(up[i].ρa*a_up_i_inv - a_min) * a_min * a_min
+            up_src[i].ρaw     -= FT(0)*(up[i].ρaw*a_up_i_inv - gm.ρu[3]) * a_min * a_min
+            up_src[i].ρaθ_liq -= FT(0)*(up[i].ρaθ_liq*a_up_i_inv - gm.ρ*θ_liq) * a_min * a_min
+            up_src[i].ρaq_tot -= FT(0)*(up[i].ρaq_tot*a_up_i_inv - gm.moisture.ρq_tot) * a_min * a_min
+            # end
+        end
         # environment second moments:
         en_src.ρatke += (
             up[i].ρaw *
@@ -620,6 +685,8 @@ function flux_second_order!(
 
     massflux_e = sum(
         vuntuple(N_up) do i
+            up[i].ρa *
+            ρ_inv *
             (gm.ρe * ρ_inv - e_tot_up[i]) *
             (gm.ρu[3] * ρ_inv - up[i].ρaw / ρa_up[i])
         end,
