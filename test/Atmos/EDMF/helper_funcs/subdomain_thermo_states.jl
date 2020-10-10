@@ -124,21 +124,39 @@ function new_thermo_state_up(
     N_up = n_updrafts(m.turbconv)
     up = state.turbconv.updraft
     p = air_pressure(ts)
+    z = altitude(m, aux)
+    FT = eltype(state)
 
     # compute thermo state for updrafts
     ts_up = vuntuple(N_up) do i
         ρa_up = up[i].ρa
         ρaθ_liq_up = up[i].ρaθ_liq
         ρaq_tot_up = up[i].ρaq_tot
-        θ_liq_up = ρaθ_liq_up / ρa_up
-        q_tot_up = ρaq_tot_up / ρa_up
+        if ρa_up/state.ρ>m.turbconv.subdomains.a_min
+            θ_liq_up = ρaθ_liq_up / ρa_up
+            q_tot_up = ρaq_tot_up / ρa_up
+        else
+            θ_liq_up = liquid_ice_pottemp(ts)
+            q_tot_up = state.moisture.ρq_tot/state.ρ
+            # @show ρa_up ,θ_liq_up ,q_tot_up
+        end
+        if θ_liq_up<FT(290)
+            a=ρa_up/state.ρ
+            a_min = m.turbconv.subdomains.a_min
+            @show a ,a_min, θ_liq_up ,q_tot_up, p, z, up[i].ρaw
+        end
 
         LiquidIcePotTempSHumEquil_given_pressure(
             m.param_set,
             θ_liq_up,
             p,
             q_tot_up,
+            30,
+            FT(1e-1),
         )
+        # if θ_liq_up<FT(270)
+        #     println("================ passed ================")
+        # end
     end
     return ts_up
 end
@@ -165,10 +183,14 @@ function new_thermo_state_en(
     a_max = m.turbconv.subdomains.a_max
     if !(0 <= θ_liq_en)
         @print("θ_liq_en = ", θ_liq_en, "\n")
+        @print("a_en = ", a_en, "\n")
+        @print("a_up = ", 1-a_en, "\n")
         error("Environment θ_liq_en out-of-bounds in new_thermo_state_en")
     end
     if !(0 <= q_tot_en <= 1)
         @print("q_tot_en = ", q_tot_en, "\n")
+        @print("a_en = ", a_en, "\n")
+        @print("a_up = ", 1-a_en, "\n")
         error("Environment q_tot_en out-of-bounds in new_thermo_state_en")
     end
     ts_en = LiquidIcePotTempSHumEquil_given_pressure(

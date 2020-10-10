@@ -190,6 +190,20 @@ Base.@kwdef struct MixingLengthModel{FT <: AbstractFloat}
     smin_rm::FT = 1.5
 end
 
+Base.@kwdef struct NoSponge{FT} <: Source
+    end
+
+Base.@kwdef struct EDMFSponge{FT} <: Source
+    "Maximum domain altitude (m)"
+    z_max::FT
+    "Altitude at with sponge starts (m)"
+    z_sponge::FT = 2400
+    "Sponge Strength 0 ⩽ α_max ⩽ 1"
+    α_max::FT = 0.75
+    "Sponge exponent"
+    γ::FT = 2
+end
+
 abstract type AbstractStatisticalModel end
 struct SubdomainMean <: AbstractStatisticalModel end
 struct GaussQuad <: AbstractStatisticalModel end
@@ -248,7 +262,7 @@ free parameters.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML, SD} <:
+Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML, SD, SM} <:
                    TurbulenceConvectionModel
     "Updrafts"
     updraft::UP
@@ -266,6 +280,8 @@ Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML, SD} <:
     mix_len::ML
     "Subdomain model"
     subdomains::SD
+    "Sponge model"
+    sponge::SM
 end
 
 """
@@ -298,7 +314,8 @@ Constructor for `EDMF` subgrid-scale scheme, given:
 function EDMF(
     FT,
     N_up,
-    N_quad;
+    N_quad,
+    zmax;
     updraft = ntuple(i -> Updraft{FT}(), N_up),
     environment = Environment{FT, N_quad}(),
     entr_detr = EntrainmentDetrainment{FT}(),
@@ -307,6 +324,7 @@ function EDMF(
     micro_phys = MicrophysicsModel(FT),
     mix_len = MixingLengthModel{FT}(),
     subdomain = SubdomainModel(FT, N_up),
+    sponge = EDMFSponge{FT}(;z_max=zmax),
 )
     args = (
         updraft,
@@ -317,6 +335,7 @@ function EDMF(
         micro_phys,
         mix_len,
         subdomain,
+        sponge,
     )
     return EDMF{FT, N_up, typeof.(args)...}(args...)
 end

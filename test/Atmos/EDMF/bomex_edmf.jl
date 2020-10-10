@@ -7,6 +7,7 @@ ClimateMachine.init(;
 using ClimateMachine.SingleStackUtils
 using ClimateMachine.Checkpoint
 using ClimateMachine.BalanceLaws: vars_state
+using ClimateMachine.SystemSolvers
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 
 include(joinpath(clima_dir, "experiments", "AtmosLES", "bomex_model.jl"))
@@ -101,7 +102,7 @@ function main(::Type{FT}) where {FT}
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(2800)
+    timeend = FT(3000)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
@@ -112,7 +113,7 @@ function main(::Type{FT}) where {FT}
 
     N_updrafts = 1
     N_quad = 3
-    turbconv = EDMF(FT, N_updrafts, N_quad)
+    turbconv = EDMF(FT, N_updrafts, N_quad, zmax)
 
     model =
         bomex_model(FT, config_type, zmax, surface_flux; turbconv = turbconv)
@@ -125,7 +126,7 @@ function main(::Type{FT}) where {FT}
         zmax,
         param_set,
         model;
-        hmax = FT(500),
+        hmax = FT(50000),
         solver_type = ode_solver_type,
     )
 
@@ -138,6 +139,52 @@ function main(::Type{FT}) where {FT}
         # fixed_number_of_steps = 1000,
         # fixed_number_of_steps=1082 # last timestep before crash
     )
+
+    ##########
+    # dg = solver_config.dg
+    # Q = solver_config.Q
+
+    #  vdg = DGModel(
+    #     driver_config.bl,
+    #     driver_config.grid,
+    #     driver_config.numerical_flux_first_order,
+    #     driver_config.numerical_flux_second_order,
+    #     driver_config.numerical_flux_gradient,
+    #     state_auxiliary = dg.state_auxiliary,
+    #     direction = VerticalDirection(),
+    # )
+
+
+
+    #  linearsolver = BatchedGeneralizedMinimalResidual(
+    #     dg,
+    #     Q;
+    #     max_subspace_size = 30,
+    #     atol = -1.0,
+    #     rtol = 1e-7,
+    # )
+
+    #  nonlinearsolver = JacobianFreeNewtonKrylovSolver(Q, linearsolver; tol = 1e-6, ϵ = 1.e-12)
+
+    #  ode_solver = ARK1ForwardBackwardEuler(
+    #     dg,
+    #     vdg,
+    #     NonLinearBackwardEulerSolver(
+    #         nonlinearsolver;
+    #         isadjustable = true,
+    #         preconditioner_update_freq = 1000,
+    #     ),
+    #     Q;
+    #     dt = solver_config.dt,
+    #     t0 = 0,
+    #     split_explicit_implicit = false,
+    #     variant = NaiveVariant(),
+    # )
+
+    #  solver_config.solver = ode_solver
+
+     ###########
+
 
     # --- Zero-out horizontal variations:
     vsp = vars_state(model, Prognostic(), FT)
