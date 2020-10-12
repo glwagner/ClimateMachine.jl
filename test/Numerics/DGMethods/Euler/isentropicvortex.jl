@@ -99,11 +99,6 @@ function main()
     expected_error[Float32, 2, Central, 2] = 2.9256355762481689e+00
     expected_error[Float32, 2, Central, 3] = 3.7092915177345276e-01
     expected_error[Float32, 2, Central, 4] = 1.1543693393468857e-01
-    
-    expected_error[Float32, 2, Roe, 1] = 1.2891359329223633e+01
-    expected_error[Float32, 2, Roe, 2] = 1.3895936012268066e+00
-    expected_error[Float32, 2, Roe, 3] = 6.8037144839763641e-02
-    expected_error[Float32, 2, Roe, 4] = 3.8893952965736389e-02
 
     expected_error[Float32, 2, Roe, 1] = 1.2891359329223633e+01
     expected_error[Float32, 2, Roe, 2] = 1.3895936012268066e+00
@@ -384,7 +379,6 @@ function isentropicvortex_initialcondition!(
     state.ρu = ρ * u
     e_kin = u' * u / 2
     state.ρe = ρ * total_energy(e_kin, e_pot, ts)
-    state.moisture.ρq_tot = FT(0)
 end
 
 function do_output(
