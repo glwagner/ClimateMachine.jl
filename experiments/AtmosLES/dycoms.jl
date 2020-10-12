@@ -340,7 +340,7 @@ function config_dycoms(FT, N, resolution, xmax, ymax, zmax)
         init_dycoms!,
         solver_type = ode_solver,
         model = model,
-	numerical_flux_first_order = RoeNumericalFlux(),
+        numerical_flux_first_order = RoeNumericalFlux(),
     )
     return config
 end

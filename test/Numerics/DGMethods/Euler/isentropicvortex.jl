@@ -234,13 +234,8 @@ function test_run(
         problem = problem,
         orientation = NoOrientation(),
         ref_state = NoReferenceState(),
-<<<<<<< HEAD
-        turbulence = ConstantViscosityWithDivergence(FT(0)),
-        moisture = EquilMoist{FT}(),#DryModel(),
-=======
         turbulence = ConstantDynamicViscosity(FT(0)),
         moisture = DryModel(),
->>>>>>> 4607e850cbe7d33247cfd5141d7907c9afdafaac
         source = nothing,
     )
 

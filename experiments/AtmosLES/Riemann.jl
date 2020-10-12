@@ -128,21 +128,21 @@ function init_Riemann!(problem, bl, state, aux, (x, y, z), t)
       state.moisture.ρq_tot = FT(0)
     end=#
     ## Test 1
-    if (x<0)
-      state.ρ = FT(1)
-      state.ρu = SVector{3,FT}(0, 0, 0)
-      p = FT(100000)
-      T = air_temperature_from_ideal_gas_law(param, p, FT(1))
-      state.ρe = internal_energy(param, T)
-      #state.moisture.ρq_tot = FT(0)
+    if (x < 0)
+        state.ρ = FT(1)
+        state.ρu = SVector{3, FT}(0, 0, 0)
+        p = FT(100000)
+        T = air_temperature_from_ideal_gas_law(param, p, FT(1))
+        state.ρe = internal_energy(param, T)
+        #state.moisture.ρq_tot = FT(0)
     else
-      ρ = FT(0.125)
-      state.ρ = ρ
-      state.ρu = SVector{3,FT}(0, 0, 0)
-      p = FT(10000)
-      T = air_temperature_from_ideal_gas_law(param, p, ρ)
-      state.ρe = ρ * internal_energy(param, T)
-      #state.moisture.ρq_tot = FT(0)
+        ρ = FT(0.125)
+        state.ρ = ρ
+        state.ρu = SVector{3, FT}(0, 0, 0)
+        p = FT(10000)
+        T = air_temperature_from_ideal_gas_law(param, p, ρ)
+        state.ρe = ρ * internal_energy(param, T)
+        #state.moisture.ρq_tot = FT(0)
     end
 
 end
@@ -211,10 +211,10 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
     model = AtmosModel{FT}(
         AtmosLESConfigType,                            # Flow in a box, requires the AtmosLESConfigType
         param_set;                                     # Parameter set corresponding to earth parameters
-	problem = problem,
+        problem = problem,
         init_state_prognostic = init_Riemann!,    # Apply the initial condition
         ref_state = NoReferenceState(),#ref_state,                         # Reference state
-        turbulence = ConstantDynamicViscosity(FT(3e-2)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
+        turbulence = ConstantDynamicViscosity(FT(1e-3)),#SmagorinskyLilly(_C_smag),        # Turbulence closure model
         moisture = DryModel(),                         # Exclude moisture variables
         source = (),                         # Gravity is the only source term here
         #tracers = NTracers{ntracers, FT}(δ_χ),         # Tracer model with diffusivity coefficients
@@ -223,20 +223,20 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "1_Rus_N10",       # Problem title [String]
+        "1_HLLC_N6_visc",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
         ymax,                    # Domain maximum size [m]
         zmax,                    # Domain maximum size [m]
-	xmin = xmin,
+        xmin = xmin,
         param_set,               # Parameter set.
         init_Riemann!,      # Function specifying initial condition
         solver_type = ode_solver,# Time-integrator type
         model = model,           # Model type
-	periodicity = (false, true, true),
-        boundary = ((1,2),(2,2),(2,2)),
-	#numerical_flux_first_order = RoeNumericalFlux(),
+        periodicity = (false, true, true),
+        boundary = ((1, 2), (2, 2), (2, 2)),
+        numerical_flux_first_order = HLLCNumericalFlux(),
     )
     return config
 end
@@ -270,7 +270,7 @@ function main()
     ## that forces problem initialization on CPU (thereby allowing the use of
     ## random seeds, spline interpolants and other special functions at the
     ## initialization step.)
-    N = 10
+    N = 6
     Δh = FT(0.0025)
     Δv = FT(0.06125)
     resolution = (Δh, Δv, Δv)
@@ -288,7 +288,8 @@ function main()
     CFL = FT(0.01)
 
     ## Assign configurations so they can be passed to the `invoke!` function
-    driver_config = config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
+    driver_config =
+        config_risingbubble(FT, N, resolution, xmax, ymax, zmax, xmin)
     solver_config = ClimateMachine.SolverConfiguration(
         t0,
         timeend,

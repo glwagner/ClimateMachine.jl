@@ -348,6 +348,32 @@ Requires a custom implementation for the balance law.
 struct HLLCNumericalFlux <: NumericalFluxFirstOrder end
 
 """
+    RoeNumericalFluxMoist() <: NumericalFluxFirstOrder
+
+A moist implementation of the numerical flux based on the approximate Riemann solver of Roe
+
+# Usage
+
+    RoeNumericalFluxMoist()
+
+Requires a custom implementation for the balance law.
+"""
+
+struct RoeNumericalFluxMoist <: NumericalFluxFirstOrder
+    LM::Bool
+    HH::Bool
+    LV::Bool
+    LVPP::Bool
+end
+
+RoeNumericalFluxMoist(;
+    LM::Bool = false,
+    HH::Bool = false,
+    LV::Bool = false,
+    LVPP::Bool = false,
+) = RoeNumericalFluxMoist(LM, HH, LV, LVPP)
+
+"""
     NumericalFluxSecondOrder
 
 Any `N <: NumericalFluxSecondOrder` should define the a method for
@@ -369,9 +395,6 @@ An optional method can also be defined for
                                        Qaux⁻, Q⁺, Qstate_gradient_flux⁺, Qaux⁺, bctype, t)
 
 """
-
-struct RoeNumericalFluxMoist <: NumericalFluxFirstOrder end
-
 
 abstract type NumericalFluxSecondOrder end
 

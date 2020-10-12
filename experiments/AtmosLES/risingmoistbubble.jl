@@ -192,9 +192,9 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## `ode_solver`.
     ## The 1D-IMEX method is less appropriate for the problem given the current
     ## mesh aspect ratio (1:1).
-    #ode_solver = ClimateMachine.ExplicitSolverType(
-     #   solver_method = LSRK144NiegemannDiehlBusch,
-    #)
+    ode_solver = ClimateMachine.ExplicitSolverType(
+        solver_method = LSRK144NiegemannDiehlBusch,
+    )
     ## If the user prefers a multi-rate explicit time integrator,
     ## the ode_solver above can be replaced with
     ##
@@ -248,7 +248,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
     ## Finally, we pass a `Problem Name` string, the mesh information, and the
     ## model type to  the [`AtmosLESConfiguration`] object.
     config = ClimateMachine.AtmosLESConfiguration(
-        "moistRisingBubble_anisotropic",       # Problem title [String]
+        "moistRisingBubble_Roe8",       # Problem title [String]
         N,                       # Polynomial order [Int]
         resolution,              # (Δx, Δy, Δz) effective resolution [m]
         xmax,                    # Domain maximum size [m]
@@ -258,7 +258,7 @@ function config_risingbubble(FT, N, resolution, xmax, ymax, zmax)
         init_risingbubble!,      # Function specifying initial condition
         #solver_type = ode_solver,# Time-integrator type
         model = model,# Model type
-	numerical_flux_first_order = RoeNumericalFluxMoist(),
+        numerical_flux_first_order = RoeNumericalFluxMoist(),
     )
     return config
 end
@@ -292,10 +292,10 @@ function main()
     ## that forces problem initialization on CPU (thereby allowing the use of
     ## random seeds, spline interpolants and other special functions at the
     ## initialization step.)
-    N = 4
+    N = 8
     Δh = FT(125)
-    Δv = FT(25)
-    resolution = (Δh, Δh, Δv)
+    Δv = FT(125)
+    resolution = (Δv, Δh, Δv)
     xmax = FT(10000)
     ymax = FT(500)
     zmax = FT(20000)
