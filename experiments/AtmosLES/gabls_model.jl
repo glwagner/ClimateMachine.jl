@@ -2,7 +2,7 @@
 #=
 # This experiment file establishes the initial conditions, boundary conditions,
 # source terms and simulation parameters (domain size + resolution) for the
-# nieuwstadt LES case. The set of parameters presented in the `master` branch copy
+# gabls LES case. The set of parameters presented in the `master` branch copy
 # include those that have passed offline tests at the full simulation time of
 # 6 hours. Suggested offline tests included plotting horizontal-domain averages
 # of key properties (see AtmosDiagnostics). The timestepper configuration is in
@@ -13,7 +13,7 @@
 #
 # To simulate the full 6 hour experiment, change `timeend` to (3600*6) and type in
 #
-# julia --project experiments/AtmosLES/nieuwstadt.jl
+# julia --project experiments/AtmosLES/gabls.jl
 #
 # See `src/Driver/driver_configs.jl` for additional flags (e.g. VTK, diagnostics,
 # update-interval, output directory settings)
@@ -99,9 +99,9 @@ import ClimateMachine.Atmos: atmos_source!
 using ClimateMachine.Atmos: altitude, recover_thermo_state
 
 """
-  nieuwstadt Geostrophic Forcing (Source)
+  gabls Geostrophic Forcing (Source)
 """
-struct NieuwstadtGeostrophic{FT} <: Source
+struct GablsGeostrophic{FT} <: Source
     "Coriolis parameter [s⁻¹]"
     f_coriolis::FT
     "Eastward geostrophic velocity `[m/s]` (Base)"
@@ -112,7 +112,7 @@ struct NieuwstadtGeostrophic{FT} <: Source
     v_geostrophic::FT
 end
 function atmos_source!(
-    s::NieuwstadtGeostrophic,
+    s::GablsGeostrophic,
     atmos::AtmosModel,
     source::Vars,
     state::Vars,
@@ -138,9 +138,9 @@ function atmos_source!(
 end
 
 """
-  nieuwstadt Sponge (Source)
+  gabls Sponge (Source)
 """
-struct NieuwstadtSponge{FT} <: Source
+struct GablsSponge{FT} <: Source
     "Maximum domain altitude (m)"
     z_max::FT
     "Altitude at with sponge starts (m)"
@@ -157,7 +157,7 @@ struct NieuwstadtSponge{FT} <: Source
     v_geostrophic::FT
 end
 function atmos_source!(
-    s::NieuwstadtSponge,
+    s::GablsSponge,
     atmos::AtmosModel,
     source::Vars,
     state::Vars,
@@ -188,29 +188,29 @@ function atmos_source!(
 end
 
 """
-  NieuwstadtTendencies (Source)
-No tendencies are applied in Nieuwstadt
+  GablsTendencies (Source)
+No tendencies are applied in gabls
 """
 
 """
-  Initial Condition for Nieuwstadt LES
+  Initial Condition for gabls LES
 """
-function init_nieuwstadt!(problem, bl, state, aux, (x, y, z), t)
-    # This experiment runs the nieuwstadt LES Configuration
+function init_gabls!(problem, bl, state, aux, (x, y, z), t)
+    # This experiment runs the gabls LES Configuration
     # (Shallow cumulus cloud regime)
     # x,y,z imply eastward, northward and altitude coordinates in `[m]`
 
     # Problem floating point precision
     FT = eltype(state)
 
-    P_sfc::FT = 1.0e5 # Surface air pressure
+    P_sfc::FT = 1.0e5 # Surface air pressuref
     _R_d::FT = R_d(bl.param_set)
-    θ_liq_sfc = FT(300) # Prescribed θ_liq at surface
-    T_sfc = FT(300) # Surface temperature
+    θ_liq_sfc = FT(265) # Prescribed θ_liq at surface
+    T_sfc = FT(265) # Surface temperature
     _grav = FT(grav(bl.param_set))
 
     # Initialise speeds [u = Eastward, v = Northward, w = Vertical]
-    u::FT = 0.01
+    u::FT = 8.0
     v::FT = 0
     w::FT = 0
 
@@ -219,12 +219,12 @@ function init_nieuwstadt!(problem, bl, state, aux, (x, y, z), t)
     q_tot::FT = 0
 
     # Piecewise functions for potential temperature and total moisture
-    if FT(0) <= z <= FT(1350)
+    if FT(0) <= z <= FT(100)
         # Well mixed layer
-        θ_liq = FT(300)
+        θ_liq = FT(265)
     else
         # Conditionally unstable layer
-        θ_liq = 300.0 + 2.0 * (z-1350.0)/1000.0
+        θ_liq = FT(265) + (z - FT(100.0)) * FT(0.01)
     end
     # Scale height based on surface parameters
     H = _R_d * T_sfc / _grav
@@ -258,7 +258,7 @@ function init_nieuwstadt!(problem, bl, state, aux, (x, y, z), t)
     init_state_prognostic!(bl.turbconv, bl, state, aux, (x, y, z), t)
 end
 
-function nieuwstadt_model(
+function gabls_model(
     ::Type{FT},
     config_type,
     zmax,
@@ -266,14 +266,14 @@ function nieuwstadt_model(
     turbconv = NoTurbConv(),
 ) where {FT}
 
-    ics = init_nieuwstadt!     # Initial conditions
+    ics = init_gabls!     # Initial conditions
 
     C_smag = FT(0.23)     # Smagorinsky coefficient
 
     u_star = FT(0.28)     # Friction velocity
     C_drag = FT(0.0011)   # Bulk transfer coefficient
 
-    T_sfc = FT(300)     # Surface temperature `[K]`
+    T_sfc = FT(265)     # Surface temperature `[K]`
     q_sfc = FT(5.0e-3)  # Surface specific humiity `[kg/kg]`
     SHF = FT(70)         # Sensible heat flux `[W/m²]`
 
@@ -284,12 +284,12 @@ function nieuwstadt_model(
     u_geostrophic = FT(0.01)        # Eastward relaxation speed
     u_slope = FT(0)     # Slope of altitude-dependent relaxation speed
     v_geostrophic = FT(0)          # Northward relaxation speed
-    f_coriolis = FT(0.376e-4) # Coriolis parameter
+    f_coriolis = FT(1.39e-4) # Coriolis parameter (latitude 73 N)
 
     # Assemble source components
     source_default = (
         Gravity(),
-        NieuwstadtSponge{FT}(
+        GablsSponge{FT}(
             zmax,
             z_sponge,
             α_max,
@@ -298,7 +298,7 @@ function nieuwstadt_model(
             u_slope,
             v_geostrophic,
         ),
-        NieuwstadtGeostrophic{FT}(f_coriolis, u_geostrophic, u_slope, v_geostrophic),
+        GablsGeostrophic{FT}(f_coriolis, u_geostrophic, u_slope, v_geostrophic),
         turbconv_sources(turbconv)...,
     )
 
