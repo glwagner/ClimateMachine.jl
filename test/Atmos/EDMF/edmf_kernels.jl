@@ -49,9 +49,9 @@ function vars_state(::Updraft, ::Auxiliary, FT)
     @vars(
         buoyancy::FT,
         a::FT,
-        ε_dyn::FT,
-        δ_dyn::FT,
-        ε_trb::FT,
+        E_dyn::FT,
+        Δ_dyn::FT,
+        E_trb::FT,
         T::FT,
         θ_liq::FT,
         q_tot::FT,
@@ -233,12 +233,12 @@ function turbconv_nodal_update_auxiliary_state!(
         entr_detr(m, m.turbconv.entr_detr, state, aux, t, ts, env, i)
     end
 
-    ε_dyn, δ_dyn, ε_trb = ntuple(i -> map(x -> x[i], εδ_up), 3)
+    E_dyn, Δ_dyn, E_trb = ntuple(i -> map(x -> x[i], εδ_up), 3)
 
     @unroll_map(N_up) do i
-        up_aux[i].ε_dyn = ε_dyn[i]
-        up_aux[i].δ_dyn = δ_dyn[i]
-        up_aux[i].ε_trb = ε_trb[i]
+        up_aux[i].E_dyn = E_dyn[i]
+        up_aux[i].Δ_dyn = Δ_dyn[i]
+        up_aux[i].E_trb = E_trb[i]
     end
 
 end;
@@ -268,7 +268,7 @@ function compute_gradient_argument!(
     env = environment_vars(state, aux, N_up)
 
     @unroll_map(N_up) do i
-        up_tf[i].w = up[i].ρaw / up[i].ρa
+        up_tf[i].w = up[i].ρaw / max(up[i].ρa, gm.ρ*turbconv.subdomains.a_min)
     end
     _grav::FT = grav(m.param_set)
 
@@ -422,12 +422,23 @@ function turbconv_source!(
     εδ_up = ntuple(N_up) do i
         entr_detr(m, m.turbconv.entr_detr, state, aux, t, ts, env, i)
     end
-    ε_dyn, δ_dyn, ε_trb = ntuple(i -> map(x -> x[i], εδ_up), 3)
+    E_dyn, Δ_dyn, E_trb = ntuple(i -> map(x -> x[i], εδ_up), 3)
 
     # get environment values
     _grav::FT = grav(m.param_set)
     ρ_inv = 1 / gm.ρ
     θ_liq_en = liquid_ice_pottemp(ts.en)
+
+    if θ_liq_en<FT(280)
+        θ_liq_gm = liquid_ice_pottemp(ts.gm)
+        z = altitude(m, aux)
+        println("========== θ_liq_en in = turbconv_source ==========")
+        @show(θ_liq_gm)
+        @show(θ_liq_en)
+        @show(up[1].ρaθ_liq)
+        @show(z)
+    end
+
     q_tot_en = total_specific_humidity(ts.en)
     tke_en = enforce_positivity(en.ρatke) * ρ_inv / env.a
     θ_liq = liquid_ice_pottemp(ts.gm)
@@ -456,16 +467,16 @@ function turbconv_source!(
 
         if ρa_up_i*ρ_inv>a_min
             # entrainment and detrainment
-            up_src[i].ρa += (ε_dyn[i] - δ_dyn[i])
+            up_src[i].ρa += (E_dyn[i] - Δ_dyn[i])
             up_src[i].ρaw +=
-                ((ε_dyn[i] + ε_trb[i]) * env.w - (δ_dyn[i] + ε_trb[i]) * w_up_i)
+                ((E_dyn[i] + E_trb[i]) * env.w - (Δ_dyn[i] + E_trb[i]) * w_up_i)
             up_src[i].ρaθ_liq +=
-                    ((ε_dyn[i] + ε_trb[i]) * θ_liq_en -
-                     (δ_dyn[i] + ε_trb[i]) * up[i].ρaθ_liq * ρa_up_i_inv
+                    ((E_dyn[i] + E_trb[i]) * θ_liq_en -
+                     (Δ_dyn[i] + E_trb[i]) * up[i].ρaθ_liq * ρa_up_i_inv
                     )
             up_src[i].ρaq_tot +=
-                    ((ε_dyn[i] + ε_trb[i]) * q_tot_en -
-                     (δ_dyn[i] + ε_trb[i]) * up[i].ρaq_tot * ρa_up_i_inv
+                    ((E_dyn[i] + E_trb[i]) * q_tot_en -
+                     (Δ_dyn[i] + E_trb[i]) * up[i].ρaq_tot * ρa_up_i_inv
                     )
 
             # add buoyancy and perturbation pressure in subdomain w equation
@@ -479,54 +490,66 @@ function turbconv_source!(
             up_src[i].ρaq_tot -= FT(0)*(up[i].ρaq_tot*a_up_i_inv - gm.moisture.ρq_tot) * a_min * a_min
             # end
         end
+        if isnan(up_src[i].ρa*up_src[i].ρaw*up_src[i].ρaθ_liq*up_src[i].ρaq_tot)
+            println("up_src[i].ρa = NaN")
+            @show(up_src[i].ρa)
+            @show(up_src[i].ρaw)
+            @show(up_src[i].ρaθ_liq)
+            @show(up_src[i].ρaq_tot)
+            @show(up_aux[i].buoyancy)
+            @show(dpdz)
+            @show(E_dyn[i])
+            @show(Δ_dyn[i])
+            @show(E_trb[i])
+        end
         # environment second moments:
         en_src.ρatke += (
-            δ_dyn[i] *
+            Δ_dyn[i] *
             (w_up_i - env.w) *
             (w_up_i - env.w) *
             FT(0.5) +
-            ε_trb[i] *
+            E_trb[i] *
             (env.w - gm.ρu[3] * ρ_inv) *
-            (env.w - w_up_i) - (ε_dyn[i] + ε_trb[i]) * tke_en
+            (env.w - w_up_i) - (E_dyn[i] + E_trb[i]) * tke_en
         )
 
         en_src.ρaθ_liq_cv += (
-            δ_dyn[i] *
+            Δ_dyn[i] *
             (up[i].ρaθ_liq * ρa_up_i_inv - θ_liq_en) *
             (up[i].ρaθ_liq * ρa_up_i_inv - θ_liq_en) +
-            ε_trb[i] *
+            E_trb[i] *
             (θ_liq_en - θ_liq) *
             (θ_liq_en - up[i].ρaθ_liq * ρa_up_i_inv) +
-            ε_trb[i] *
+            E_trb[i] *
             (θ_liq_en - θ_liq) *
             (θ_liq_en - up[i].ρaθ_liq * ρa_up_i_inv) -
-            (ε_dyn[i] + ε_trb[i]) * en.ρaθ_liq_cv
+            (E_dyn[i] + E_trb[i]) * en.ρaθ_liq_cv
         )
 
         en_src.ρaq_tot_cv += (
-            δ_dyn[i] *
+            Δ_dyn[i] *
             (up[i].ρaq_tot * ρa_up_i_inv - q_tot_en) *
             (up[i].ρaq_tot * ρa_up_i_inv - q_tot_en) +
-            ε_trb[i] *
+            E_trb[i] *
             (q_tot_en - gm.moisture.ρq_tot * ρ_inv) *
             (q_tot_en - up[i].ρaq_tot * ρa_up_i_inv) +
-            ε_trb[i] *
+            E_trb[i] *
             (q_tot_en - gm.moisture.ρq_tot * ρ_inv) *
             (q_tot_en - up[i].ρaq_tot * ρa_up_i_inv) -
-            (ε_dyn[i] + ε_trb[i]) * en.ρaq_tot_cv
+            (E_dyn[i] + E_trb[i]) * en.ρaq_tot_cv
         )
 
         en_src.ρaθ_liq_q_tot_cv += (
-            δ_dyn[i] *
+            Δ_dyn[i] *
             (up[i].ρaθ_liq * ρa_up_i_inv - θ_liq_en) *
             (up[i].ρaq_tot * ρa_up_i_inv - q_tot_en) +
-            ε_trb[i] *
+            E_trb[i] *
             (θ_liq_en - θ_liq) *
             (q_tot_en - up[i].ρaq_tot * ρa_up_i_inv) +
-            ε_trb[i] *
+            E_trb[i] *
             (q_tot_en - gm.moisture.ρq_tot * ρ_inv) *
             (θ_liq_en - up[i].ρaθ_liq * ρa_up_i_inv) -
-            (ε_dyn[i] + ε_trb[i]) * en.ρaθ_liq_q_tot_cv
+            (E_dyn[i] + E_trb[i]) * en.ρaθ_liq_q_tot_cv
         )
 
         # pressure tke source from the i'th updraft
@@ -539,8 +562,8 @@ function turbconv_source!(
         diffusive,
         aux,
         t,
-        δ_dyn,
-        ε_trb,
+        Δ_dyn,
+        E_trb,
         ts,
         env,
     )
@@ -593,6 +616,9 @@ function flux_first_order!(
     @unroll_map(N_up) do i
         ρa_i = ρa_up[i]
         up_flx[i].ρa = up[i].ρaw * ẑ
+        if ρa_i==FT(0)
+            println("zero area")
+        end
         w_up_i = up[i].ρaw / ρa_i
         up_flx[i].ρaw = up[i].ρaw * w_up_i * ẑ
         up_flx[i].ρaθ_liq = w_up_i * up[i].ρaθ_liq * ẑ
@@ -637,7 +663,7 @@ function flux_second_order!(
         entr_detr(m, m.turbconv.entr_detr, state, aux, t, ts, env, i)
     end
 
-    ε_dyn, δ_dyn, ε_trb = ntuple(i -> map(x -> x[i], εδ_up), 3)
+    E_dyn, Δ_dyn, E_trb = ntuple(i -> map(x -> x[i], εδ_up), 3)
 
     l_mix = mixing_length(
         m,
@@ -646,8 +672,8 @@ function flux_second_order!(
         diffusive,
         aux,
         t,
-        δ_dyn,
-        ε_trb,
+        Δ_dyn,
+        E_trb,
         ts,
         env,
     )

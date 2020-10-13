@@ -75,8 +75,8 @@ function entr_detr(
         E_trb =
             2 * up[i].ρa * entr.c_t * sqrt_tke /
             max(m.turbconv.pressure.H_up, entr.εt_min)
-        E_dyn = up[i].ρa*λ*(D_E + M_E) * E_lim
-        Δ_dyn = up[i].ρa*λ*(D_δ + M_δ) * Δ_lim
+        E_dyn = up[i].ρa*λ*(D_E + M_E)# * E_lim
+        Δ_dyn = up[i].ρa*λ*(D_δ + M_δ)# * Δ_lim
 
         E_dyn = min(max(E_dyn, FT(0)), FT(1))
         Δ_dyn = min(max(Δ_dyn, FT(0)), FT(1))
@@ -84,7 +84,7 @@ function entr_detr(
     else
         E_dyn = FT(0)
         Δ_dyn = FT(0)
-        E_trb = FT(0)
+        E_trb = FT(1e-6)
     end
     return E_dyn, Δ_dyn, E_trb
 end;

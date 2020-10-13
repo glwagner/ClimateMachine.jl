@@ -57,7 +57,7 @@ function init_state_prognostic!(
     a_min = turbconv.subdomains.a_min
     @unroll_map(N_up) do i
         up[i].ρa = gm.ρ * a_min
-        up[i].ρaw = gm.ρu[3] * a_min
+        up[i].ρaw = FT(0)
         up[i].ρaθ_liq = gm.ρ * a_min * θ_liq
         up[i].ρaq_tot = gm.moisture.ρq_tot * a_min
     end
@@ -102,7 +102,7 @@ function main(::Type{FT}) where {FT}
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(3000)
+    timeend = FT(3600)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
