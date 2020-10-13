@@ -143,6 +143,32 @@ function new_thermo_state_up(
     return ts_up
 end
 
+function new_thermo_state_up(
+    m::AtmosModel,
+    moist::DryModel,
+    state::Vars,
+    aux::Vars,
+    ts::ThermodynamicState,
+)
+    N_up = n_updrafts(m.turbconv)
+    up = state.turbconv.updraft
+    p = air_pressure(ts)
+
+    # compute thermo state for updrafts
+    ts_up = vuntuple(N_up) do i
+        ρa_up = up[i].ρa
+        ρaθ_liq_up = up[i].ρaθ_liq
+        θ_liq_up = ρaθ_liq_up / ρa_up
+
+        PhaseDry_given_pθ(
+        m.param_set,
+        p,
+        θ_liq_up,
+    )
+    end
+    return ts_up
+end
+
 function new_thermo_state_en(
     m::AtmosModel,
     moist::EquilMoist,
@@ -180,6 +206,38 @@ function new_thermo_state_en(
     return ts_en
 end
 
+
+function new_thermo_state_en(
+    m::AtmosModel,
+    moist::DryModel,
+    state::Vars,
+    aux::Vars,
+    ts::ThermodynamicState,
+)
+    N_up = n_updrafts(m.turbconv)
+    up = state.turbconv.updraft
+
+    # diagnose environment thermo state
+    ρ_inv = 1 / state.ρ
+    p = air_pressure(ts)
+    θ_liq = liquid_ice_pottemp(ts)
+    a_en = environment_area(state, aux, N_up)
+    θ_liq_en = (θ_liq - sum(vuntuple(j -> up[j].ρaθ_liq * ρ_inv, N_up))) / a_en
+    a_min = m.turbconv.subdomains.a_min
+    a_max = m.turbconv.subdomains.a_max
+    if !(0 <= θ_liq_en)
+        @print("θ_liq_en = ", θ_liq_en, "\n")
+        @show(θ_liq,p, up[1].ρaθ_liq)
+        error("Environment θ_liq_en out-of-bounds in new_thermo_state_en")
+    end
+    ts_en = PhaseDry_given_pθ(
+        m.param_set,
+        p,
+        θ_liq_en,
+    )
+    return ts_en
+end
+
 function recover_thermo_state_up(
     m::AtmosModel,
     moist::EquilMoist,
@@ -192,6 +250,16 @@ function recover_thermo_state_up(
         recover_thermo_state_up_i(m, state, aux, i, ts)
     end
     return ts_up
+end
+
+function recover_thermo_state_up(
+    m::AtmosModel,
+    moist::DryModel,
+    state::Vars,
+    aux::Vars,
+    ts::ThermodynamicState = recover_thermo_state(m, state, aux),
+)
+    return new_thermo_state_up(m ,moist ,state ,aux ,ts)
 end
 
 recover_thermo_state_up_i(m, state, aux, i_up, ts) =
@@ -253,4 +321,14 @@ function recover_thermo_state_en(
         q_en.tot,
         T_en,
     )
+end
+
+function recover_thermo_state_en(
+    m::AtmosModel,
+    moist::DryModel,
+    state::Vars,
+    aux::Vars,
+    ts::ThermodynamicState = recover_thermo_state(m, state, aux),
+)
+    return new_thermo_state_en(m ,moist ,state ,aux ,ts)
 end

@@ -231,7 +231,7 @@ function init_gabls!(problem, bl, state, aux, (x, y, z), t)
     P = P_sfc * exp(-z / H)
 
     # Establish thermodynamic state and dry phase partitioning
-    TS = PhaseDry_given_pT(bl.param_set, θ_dry, P)
+    TS = PhaseDry_given_pθ(bl.param_set, P, θ_dry)
     T = air_temperature(TS)
     ρ = air_density(TS)
 

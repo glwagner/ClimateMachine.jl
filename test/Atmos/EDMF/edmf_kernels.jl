@@ -446,6 +446,8 @@ function turbconv_source!(
             up[i].ρaw * (ε_dyn[i] + ε_trb[i]) * en.ρaθ_liq_cv
         )
 
+        ρq_tot = m.moisture isa DryModel ? FT(0) : gm.moisture.ρq_tot
+
         en_src.ρaq_tot_cv += (
             up[i].ρaw *
             δ_dyn[i] *
@@ -453,11 +455,11 @@ function turbconv_source!(
             (up[i].ρaq_tot * ρa_up_i_inv - q_tot_en) +
             up[i].ρaw *
             ε_trb[i] *
-            (q_tot_en - gm.moisture.ρq_tot * ρ_inv) *
+            (q_tot_en - ρq_tot * ρ_inv) *
             (q_tot_en - up[i].ρaq_tot * ρa_up_i_inv) +
             up[i].ρaw *
             ε_trb[i] *
-            (q_tot_en - gm.moisture.ρq_tot * ρ_inv) *
+            (q_tot_en - ρq_tot * ρ_inv) *
             (q_tot_en - up[i].ρaq_tot * ρa_up_i_inv) -
             up[i].ρaw * (ε_dyn[i] + ε_trb[i]) * en.ρaq_tot_cv
         )
@@ -473,7 +475,7 @@ function turbconv_source!(
             (q_tot_en - up[i].ρaq_tot * ρa_up_i_inv) +
             up[i].ρaw *
             ε_trb[i] *
-            (q_tot_en - gm.moisture.ρq_tot * ρ_inv) *
+            (q_tot_en - ρq_tot * ρ_inv) *
             (θ_liq_en - up[i].ρaθ_liq * ρa_up_i_inv) -
             up[i].ρaw * (ε_dyn[i] + ε_trb[i]) * en.ρaθ_liq_q_tot_cv
         )
@@ -627,11 +629,12 @@ function flux_second_order!(
         end,
     )
 
+    ρq_tot = m.moisture isa DryModel ? FT(0) : gm.moisture.ρq_tot
     massflux_q_tot = sum(
         vuntuple(N_up) do i
             up[i].ρa *
             ρ_inv *
-            (gm.moisture.ρq_tot * ρ_inv - up[i].ρaq_tot / up[i].ρa) *
+            (ρq_tot * ρ_inv - up[i].ρaq_tot / up[i].ρa) *
             (gm.ρu[3] * ρ_inv - up[i].ρaw / ρa_up[i])
         end,
     )

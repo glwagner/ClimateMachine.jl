@@ -52,7 +52,7 @@ function init_state_prognostic!(
     p = air_pressure(ts)
     θ_dry = dry_pottemp(ts)
 
-    a_min = FT(0)
+    a_min = turbconv.subdomains.a_min
     @unroll_map(N_up) do i
         up[i].ρa = gm.ρ * a_min
         up[i].ρaw = gm.ρu[3] * a_min
@@ -155,10 +155,6 @@ function main(::Type{FT}) where {FT}
         solver_config.Q,
         varsindex(vsp, :ρe),
     )
-    horizontally_average!(
-        driver_config.grid,
-        solver_config.Q,
-    )
 
     vsa = vars_state(model, Auxiliary(), FT)
     horizontally_average!(
@@ -173,6 +169,7 @@ function main(::Type{FT}) where {FT}
     cbtmarfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
             solver_config.Q,
+            (turbconv_filters(turbconv)...,),
             solver_config.dg.grid,
             TMARFilter(),
         )
@@ -224,7 +221,7 @@ function main(::Type{FT}) where {FT}
         nothing
     end
 
-    cb_print_step = GenericCallbacks.EveryXSimulationSteps(100) do
+    cb_print_step = GenericCallbacks.EveryXSimulationSteps(1) do
         @show getsteps(solver_config.solver)
         nothing
     end
