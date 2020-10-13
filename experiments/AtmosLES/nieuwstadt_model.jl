@@ -205,7 +205,7 @@ function init_nieuwstadt!(problem, bl, state, aux, (x, y, z), t)
 
     P_sfc::FT = 1.0e5 # Surface air pressure
     _R_d::FT = R_d(bl.param_set)
-    θ_liq_sfc = FT(300) # Prescribed θ_liq at surface
+    θ_dry_sfc = FT(300) # Prescribed θ_dry at surface
     T_sfc = FT(300) # Surface temperature
     _grav = FT(grav(bl.param_set))
 
@@ -214,28 +214,26 @@ function init_nieuwstadt!(problem, bl, state, aux, (x, y, z), t)
     v::FT = 0
     w::FT = 0
 
-    # Assign piecewise quantities to θ_liq and q_tot
-    θ_liq::FT = 0
-    q_tot::FT = 0
+    # Assign piecewise quantities to θ_dry
+    θ_dry::FT = 0
 
     # Piecewise functions for potential temperature and total moisture
     if FT(0) <= z <= FT(1350)
         # Well mixed layer
-        θ_liq = FT(300)
+        θ_dry = FT(300)
     else
         # Conditionally unstable layer
-        θ_liq = 300.0 + 2.0 * (z-1350.0)/1000.0
+        θ_dry = 300.0 + 2.0 * (z-1350.0)/1000.0
     end
     # Scale height based on surface parameters
     H = _R_d * T_sfc / _grav
     # Pressure based on scale height
     P = P_sfc * exp(-z / H)
 
-    # TODO - I need to replace this with the dry counterpart of this function
-    TS = LiquidIcePotTempSHumEquil_given_pressure(bl.param_set, θ_liq, P, FT(0))
+    # Establish thermodynamic state and dry phase partitioning
+    TS = PhaseDry_given_pT(bl.param_set, θ_dry, P)
     T = air_temperature(TS)
     ρ = air_density(TS)
-    q_pt = PhasePartition(TS)
 
     # Compute momentum contributions
     ρu = ρ * u
@@ -274,7 +272,6 @@ function nieuwstadt_model(
     C_drag = FT(0.0011)   # Bulk transfer coefficient
 
     T_sfc = FT(300)     # Surface temperature `[K]`
-    q_sfc = FT(5.0e-3)  # Surface specific humiity `[kg/kg]`
     SHF = FT(70)         # Sensible heat flux `[W/m²]`
 
     z_sponge = FT(2400)     # Start of sponge layer
@@ -309,7 +306,7 @@ function nieuwstadt_model(
     elseif surface_flux == "bulk"
         energy_bc = BulkFormulaEnergy(
             (state, aux, t, normPu_int) -> C_drag,
-            (state, aux, t) -> (T_sfc, q_sfc),
+            (state, aux, t) -> (T_sfc),
         )
     else
         @warn @sprintf(

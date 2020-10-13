@@ -32,7 +32,7 @@ function main()
     # Prescribe domain parameters
     xmax = FT(6400)
     ymax = FT(6400)
-    zmax = FT(3000)
+    zmax = FT(300)
 
     t0 = FT(0)
 

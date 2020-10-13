@@ -9,7 +9,7 @@ using ClimateMachine.Checkpoint
 using ClimateMachine.BalanceLaws: vars_state
 const clima_dir = dirname(dirname(pathof(ClimateMachine)));
 
-include(joinpath(clima_dir, "experiments", "AtmosLES", "nieuwstadt_model.jl"))
+include(joinpath(clima_dir, "experiments", "AtmosLES", "gabls_model.jl"))
 include("edmf_model.jl")
 include("edmf_kernels.jl")
 
@@ -39,20 +39,20 @@ function init_state_prognostic!(
     en = state.turbconv.environment
     up = state.turbconv.updraft
     N_up = n_updrafts(turbconv)
-    # GCM setting - Initialize the grid mean profiles of prognostic variables (ρ,e_int,q_tot,u,v,w)
+    # GCM setting - Initialize the grid mean profiles of prognostic variables (ρ,e_int,u,v,w)
     z = altitude(m, aux)
 
     # SCM setting - need to have separate cases coded and called from a folder - see what LES does
-    # a moist_thermo state is used here to convert the input θ,q_tot to e_int, q_tot profile
+    # a moist_thermo state is used here to convert the input θ, to e_int profile
     e_int = internal_energy(m, state, aux)
 
+    # Establish thermodynamic state and dry phase partitioning
     ts = PhaseDry(m.param_set, e_int, state.ρ)
     T = air_temperature(ts)
     p = air_pressure(ts)
     θ_dry = dry_pottemp(ts)
 
-
-    a_min = turbconv.subdomains.a_min
+    a_min = FT(0)
     @unroll_map(N_up) do i
         up[i].ρa = gm.ρ * a_min
         up[i].ρaw = gm.ρu[3] * a_min
@@ -61,12 +61,13 @@ function init_state_prognostic!(
     end
 
     # initialize environment covariance with zero for now
-    if z <= FT(1600)
-        en.ρatke = gm.ρ * (FT(0.1)*FT(1.46)*FT(1.46)*(FT(1.0) - z/FT(1600)))
+    if z <= FT(250)
+        en.ρatke      = gm.ρ * FT(0.4)*(FT(1)-z/FT(250))*(FT(1)-z/FT(250))*(FT(1)-z/FT(250))
+        en.ρaθ_liq_cv = gm.ρ * FT(0.4)*(FT(1)-z/FT(250))*(FT(1)-z/FT(250))*(FT(1)-z/FT(250))
     else
-        en.ρatke = FT(0)
+        en.ρatke      = FT(0)
+        en.ρaθ_liq_cv = FT(0)
     end
-    en.ρaθ_liq_cv = FT(1e-5) / max(z, FT(10))
     en.ρaq_tot_cv = FT(0)
     en.ρaθ_liq_q_tot_cv = FT(0)
     return nothing
@@ -75,9 +76,9 @@ end;
 function main(::Type{FT}) where {FT}
     # add a command line argument to specify the kind of surface flux
     # TODO: this will move to the future namelist functionality
-    nieuwstadt_args = ArgParseSettings(autofix_names = true)
-    add_arg_group!(nieuwstadt_args, "NIEUWSTADT")
-    @add_arg_table! nieuwstadt_args begin
+    gabls_args = ArgParseSettings(autofix_names = true)
+    add_arg_group!(gabls_args, "GABLS")
+    @add_arg_table! gabls_args begin
         "--surface-flux"
         help = "specify surface flux for energy and moisture"
         metavar = "prescribed|bulk"
@@ -86,7 +87,7 @@ function main(::Type{FT}) where {FT}
     end
 
     cl_args =
-        ClimateMachine.init(parse_clargs = true, custom_clargs = nieuwstadt_args)
+        ClimateMachine.init(parse_clargs = true, custom_clargs = gabls_args)
 
     surface_flux = cl_args["surface_flux"]
 
@@ -95,12 +96,12 @@ function main(::Type{FT}) where {FT}
     nelem_vert = 50
 
     # Prescribe domain parameters
-    zmax = FT(3000)
+    zmax = FT(300)
 
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(28800)
+    timeend = FT(32400)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
@@ -113,7 +114,7 @@ function main(::Type{FT}) where {FT}
     N_quad = 3
     turbconv = EDMF(FT, N_updrafts, N_quad)
 
-    model = nieuwstadt_model(
+    model = gabls_model(
         FT,
         config_type,
         zmax,
@@ -122,7 +123,7 @@ function main(::Type{FT}) where {FT}
 
     # Assemble configuration
     driver_config = ClimateMachine.SingleStackConfiguration(
-        "NIEUWSTADT_EDMF",
+        "GABLS_EDMF",
         N,
         nelem_vert,
         zmax,
@@ -253,5 +254,5 @@ include(joinpath(
     "test",
     "Atmos",
     "EDMF",
-    "nieuwstadt_edmf_regression_test.jl",
+    "gabls_edmf_regression_test.jl",
 ))

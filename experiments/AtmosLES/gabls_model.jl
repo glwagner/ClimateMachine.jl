@@ -205,7 +205,7 @@ function init_gabls!(problem, bl, state, aux, (x, y, z), t)
 
     P_sfc::FT = 1.0e5 # Surface air pressuref
     _R_d::FT = R_d(bl.param_set)
-    θ_liq_sfc = FT(265) # Prescribed θ_liq at surface
+    θ_dry_sfc = FT(265) # Prescribed θ_dry at surface
     T_sfc = FT(265) # Surface temperature
     _grav = FT(grav(bl.param_set))
 
@@ -214,28 +214,26 @@ function init_gabls!(problem, bl, state, aux, (x, y, z), t)
     v::FT = 0
     w::FT = 0
 
-    # Assign piecewise quantities to θ_liq and q_tot
-    θ_liq::FT = 0
-    q_tot::FT = 0
+    # Assign piecewise quantities to θ_dry
+    θ_dry::FT = 0
 
     # Piecewise functions for potential temperature and total moisture
     if FT(0) <= z <= FT(100)
         # Well mixed layer
-        θ_liq = FT(265)
+        θ_dry = FT(265)
     else
         # Conditionally unstable layer
-        θ_liq = FT(265) + (z - FT(100.0)) * FT(0.01)
+        θ_dry = FT(265) + (z - FT(100.0)) * FT(0.01)
     end
     # Scale height based on surface parameters
     H = _R_d * T_sfc / _grav
     # Pressure based on scale height
     P = P_sfc * exp(-z / H)
 
-    # TODO - I need to replace this with the dry counterpart of this function
-    TS = LiquidIcePotTempSHumEquil_given_pressure(bl.param_set, θ_liq, P, FT(0))
+    # Establish thermodynamic state and dry phase partitioning
+    TS = PhaseDry_given_pT(bl.param_set, θ_dry, P)
     T = air_temperature(TS)
     ρ = air_density(TS)
-    q_pt = PhasePartition(TS)
 
     # Compute momentum contributions
     ρu = ρ * u
@@ -274,14 +272,13 @@ function gabls_model(
     C_drag = FT(0.0011)   # Bulk transfer coefficient
 
     T_sfc = FT(265)     # Surface temperature `[K]`
-    q_sfc = FT(5.0e-3)  # Surface specific humiity `[kg/kg]`
-    SHF = FT(70)         # Sensible heat flux `[W/m²]`
+    SHF = FT(0)         # Sensible heat flux `[W/m²]`
 
-    z_sponge = FT(2400)     # Start of sponge layer
+    z_sponge = FT(200)     # Start of sponge layer
     α_max = FT(0.75)        # Strength of sponge layer (timescale)
     γ = 2              # Strength of sponge layer (exponent)
 
-    u_geostrophic = FT(0.01)        # Eastward relaxation speed
+    u_geostrophic = FT(8)        # Eastward relaxation speed
     u_slope = FT(0)     # Slope of altitude-dependent relaxation speed
     v_geostrophic = FT(0)          # Northward relaxation speed
     f_coriolis = FT(1.39e-4) # Coriolis parameter (latitude 73 N)
@@ -309,7 +306,7 @@ function gabls_model(
     elseif surface_flux == "bulk"
         energy_bc = BulkFormulaEnergy(
             (state, aux, t, normPu_int) -> C_drag,
-            (state, aux, t) -> (T_sfc, q_sfc),
+            (state, aux, t) -> (T_sfc),
         )
     else
         @warn @sprintf(
