@@ -23,7 +23,15 @@ using CLIMAParameters.Planet: R_d, cp_d, cv_d, MSLP, grav
 struct EarthParameterSet <: AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
-function init_agnesi_hs_lin!(problem, bl, state, aux, (x, y, z), t)
+function init_agnesi_hs_lin!(
+    problem,
+    bl,
+    state,
+    aux,
+    (x, y, z),
+    (xc, yc, zc),
+    t,
+)
     # Problem float-type
     FT = eltype(state)
 
@@ -230,7 +238,7 @@ function main()
     # expect perfect energy conservation.
 end
 
-main()
+main();
 
 # This file was generated using Literate.jl, https://github.com/fredrikekre/Literate.jl
 

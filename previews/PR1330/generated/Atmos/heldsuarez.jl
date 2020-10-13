@@ -83,7 +83,15 @@ function held_suarez_forcing!(
     source.ρe -= k_T * ρ * _cv_d * (T - T_equil)
 end;
 
-function init_heldsuarez!(problem, balance_law, state, aux, coordinates, time)
+function init_heldsuarez!(
+    problem,
+    balance_law,
+    state,
+    aux,
+    coordinates,
+    center_coordinates,
+    time,
+)
     FT = eltype(state)
 
     # Set initial state to reference state with random perturbation
