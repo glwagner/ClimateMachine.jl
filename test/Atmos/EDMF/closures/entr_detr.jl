@@ -84,7 +84,7 @@ function entr_detr(
     else
         E_dyn = FT(0)
         Δ_dyn = FT(0)
-        E_trb = FT(1e-6)
+        E_trb = FT(0)
     end
     return E_dyn, Δ_dyn, E_trb
 end;

@@ -221,6 +221,18 @@ function main(::Type{FT}) where {FT}
             solver_config.dg.grid,
             TMARFilter(),
         )
+        #new quick&dirty bounds filter
+        bl = solver_config.dg.balance_law
+        st = vars_state(bl, Prognostic(), eltype(Q))
+        a_min = bl.turbconv.subdomains.a_min
+        a_max = bl.turbconv.subdomains.a_max
+        i_ρ = varsindex(st, :ρ)
+        for i in 1:n_updrafts(bl.turbconv)
+            i_a_up = varsindex(st, :turbconv, :updraft, Val(i), :ρa)
+            ρ_gm = solver_config.Q[:,i_ρ,:]
+            solver_config.Q[:,i_a_up,:] .= max.(solver_config.Q[:,i_a_up,:], ρ_gm * a_min)
+            solver_config.Q[:,i_a_up,:] .= min.(solver_config.Q[:,i_a_up,:], ρ_gm * a_max)
+        end
         nothing
     end
 
