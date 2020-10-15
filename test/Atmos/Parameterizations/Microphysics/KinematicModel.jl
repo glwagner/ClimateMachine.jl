@@ -26,11 +26,12 @@ using StaticArrays
 using Test
 
 using ClimateMachine
-ClimateMachine.init()
+ClimateMachine.init(diagnostics = "default")
 using ClimateMachine.Atmos
 using ClimateMachine.Orientations
 using ClimateMachine.ConfigTypes
 using ClimateMachine.DGMethods.NumericalFluxes
+using ClimateMachine.Diagnostics
 using ClimateMachine.Grids
 using ClimateMachine.GenericCallbacks
 using ClimateMachine.Mesh.Filters
@@ -46,13 +47,18 @@ using ClimateMachine.Thermodynamics:
     TemperatureSHumEquil,
     TemperatureSHumNonEquil,
     air_temperature,
-    latent_heat_fusion
+    latent_heat_fusion,
+    Liquid,
+    Ice,
+    supersaturation,
+    vapor_specific_humidity
 
 using ClimateMachine.Microphysics
 using ClimateMachine.MPIStateArrays
 using ClimateMachine.ODESolvers
 using ClimateMachine.VariableTemplates
 using ClimateMachine.VTK
+using ClimateMachine.Writers
 
 using CLIMAParameters
 using CLIMAParameters.Planet:
@@ -198,8 +204,8 @@ function nodal_init_state_auxiliary!(
 
     @inbounds begin
         aux.p = p
-        aux.x = x
-        aux.z = z
+        aux.x_coord = x
+        aux.z_coord = z
     end
 end
 
@@ -207,11 +213,11 @@ function init_state_prognostic!(
     m::KinematicModel,
     state::Vars,
     aux::Vars,
-    coords,
+    local_geom,
     t,
     args...,
 )
-    m.init_state_prognostic(m, state, aux, coords, t, args...)
+    m.init_state_prognostic(m, state, aux, local_geom, t, args...)
 end
 
 function boundary_state!(
