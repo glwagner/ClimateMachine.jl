@@ -747,7 +747,7 @@ end
         m::AtmosModel,
         state::Vars,
         aux::Vars,
-        coords,
+        localgeo,
         t,
         args...,
     )

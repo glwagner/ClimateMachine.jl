@@ -91,5 +91,17 @@ function boundary_state!(
     t,
     args...,
 )
-    init_state_prognostic!(m, state⁺, aux⁺, aux⁺.coord, t)
+    # Here we create a dummy_vgeo object so we can use LocalGeometry
+    FT = eltype(aux⁺)
+    dummy_vgeo = MArray{Tuple{1, _x3, 1}, FT}(undef)
+    dummy_vgeo[1, _x1] = aux⁺.coord[1]
+    dummy_vgeo[1, _x2] = aux⁺.coord[2]
+    dummy_vgeo[1, _x3] = aux⁺.coord[3]
+    init_state_prognostic!(
+        m,
+        state⁺,
+        aux⁺,
+        LocalGeometry{0, 0}(dummy_vgeo, 1, 1),
+        t,
+    )
 end
