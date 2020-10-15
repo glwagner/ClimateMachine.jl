@@ -13,36 +13,36 @@ universal_functions(args) = (Gryanik(args...),
     Grachev(args...),
     Businger(args...),)
 
-function save_ϕ_figs(args, ζ; ylims=nothing, fig_suffix=&quot;&quot;, xaxis=:identity, yaxis=:identity)
+function save_ϕ_figs(args, ζ; ylims=nothing, fig_prefix=&quot;&quot;, xaxis=:identity, yaxis=:identity)
     plot()
     for uf in universal_functions(args)
         ϕ_m = phi.(uf, ζ, MomentumTransport());
         name = &quot;$(typeof(uf).name)&quot;
         plot!(ζ, ϕ_m, xlabel=&quot;ζ&quot;, ylabel=&quot;ϕ_m&quot;, label=name, ylims=ylims, xaxis=xaxis,yaxis=yaxis)
     end
-    savefig(&quot;phi_m_$fig_suffix.svg&quot;);
+    savefig(&quot;$(fig_prefix)_phi_m.svg&quot;);
     plot()
     for uf in universal_functions(args)
         ϕ_h = phi.(uf, ζ, HeatTransport());
         name = &quot;$(typeof(uf).name)&quot;
         plot!(ζ, ϕ_h, xlabel=&quot;ζ&quot;, ylabel=&quot;ϕ_h&quot;, label=name, ylims=ylims, xaxis=xaxis,yaxis=yaxis)
     end
-    savefig(&quot;phi_h_$fig_suffix.svg&quot;)
+    savefig(&quot;$(fig_prefix)_phi_h.svg&quot;)
 end
-function save_ψ_figs(args, ζ; ylims=nothing, fig_suffix=&quot;&quot;, xaxis=:identity, yaxis=:identity)
+function save_ψ_figs(args, ζ; ylims=nothing, fig_prefix=&quot;&quot;, xaxis=:identity, yaxis=:identity)
     plot()
     for uf in universal_functions(args)
         ψ_m = psi.(uf, ζ, MomentumTransport());
         name = &quot;$(typeof(uf).name)&quot;
         plot!(ζ, ψ_m, xlabel=&quot;ζ&quot;, ylabel=&quot;ψ_m&quot;, label=name, ylims=ylims, xaxis=xaxis,yaxis=yaxis)
     end
-    savefig(&quot;psi_m_$fig_suffix.svg&quot;);
+    savefig(&quot;$(fig_prefix)_psi_m.svg&quot;);
     plot()
     for uf in universal_functions(args)
         ψ_h = psi.(uf, ζ, HeatTransport());
         name = &quot;$(typeof(uf).name)&quot;
         plot!(ζ, ψ_h, xlabel=&quot;ζ&quot;, ylabel=&quot;ψ_h&quot;, label=name, ylims=ylims, xaxis=xaxis,yaxis=yaxis)
     end
-    savefig(&quot;psi_h_$fig_suffix.svg&quot;);
-end</code></pre><pre class="documenter-example-output">save_ψ_figs (generic function with 1 method)</pre><h2 id="Figs-1,2-(Gryanik)"><a class="docs-heading-anchor" href="#Figs-1,2-(Gryanik)">Figs 1,2 (Gryanik)</a><a id="Figs-1,2-(Gryanik)-1"></a><a class="docs-heading-anchor-permalink" href="#Figs-1,2-(Gryanik)" title="Permalink"></a></h2><pre><code class="language-julia">save_ϕ_figs(args, FT(0):FT(0.01):FT(15);ylims=(0,30), fig_suffix=&quot;Gryanik12&quot;)
-save_ψ_figs(args, FT(0):FT(0.01):FT(15);ylims=(-25,0), fig_suffix=&quot;Gryanik12&quot;)</code></pre><p><img src="../phi_h_Gryanik12.svg" alt/> <img src="../phi_m_Gryanik12.svg" alt/> <img src="../psi_h_Gryanik12.svg" alt/> <img src="../psi_m_Gryanik12.svg" alt/></p><h2 id="Fig-3-(Gryanik)"><a class="docs-heading-anchor" href="#Fig-3-(Gryanik)">Fig 3 (Gryanik)</a><a id="Fig-3-(Gryanik)-1"></a><a class="docs-heading-anchor-permalink" href="#Fig-3-(Gryanik)" title="Permalink"></a></h2><pre><code class="language-julia">save_ϕ_figs(args, 10 .^ (FT(-3):0.1:FT(2)); ylims=(0.1,10^2), xaxis=:log10, yaxis=:log10, fig_suffix=&quot;Gryanik3&quot;)</code></pre><p><img src="../phi_h_Gryanik3.svg" alt/> <img src="../phi_m_Gryanik3.svg" alt/></p><h2 id="Figs-1,2-(Businger)"><a class="docs-heading-anchor" href="#Figs-1,2-(Businger)">Figs 1,2 (Businger)</a><a id="Figs-1,2-(Businger)-1"></a><a class="docs-heading-anchor-permalink" href="#Figs-1,2-(Businger)" title="Permalink"></a></h2><pre><code class="language-julia">save_ϕ_figs(args, FT(-2.5):FT(0.01):FT(2);ylims=(-1,8),fig_suffix=&quot;Businger&quot;)</code></pre><p><img src="../phi_h_Businger.svg" alt/> <img src="../phi_m_Businger.svg" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../Thermodynamics/">« Thermodynamics</a><a class="docs-footer-nextpage" href="../../Atmos/TemperatureProfiles/">Temperature profiles »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 15 October 2020 17:30">Thursday 15 October 2020</span>. Using Julia version 1.5.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+    savefig(&quot;$(fig_prefix)_psi_h.svg&quot;);
+end</code></pre><pre class="documenter-example-output">save_ψ_figs (generic function with 1 method)</pre><h2 id="Figs-1,2-(Gryanik)"><a class="docs-heading-anchor" href="#Figs-1,2-(Gryanik)">Figs 1,2 (Gryanik)</a><a id="Figs-1,2-(Gryanik)-1"></a><a class="docs-heading-anchor-permalink" href="#Figs-1,2-(Gryanik)" title="Permalink"></a></h2><pre><code class="language-julia">save_ϕ_figs(args, FT(0):FT(0.01):FT(15);ylims=(0,30), fig_prefix=&quot;Gryanik12&quot;)
+save_ψ_figs(args, FT(0):FT(0.01):FT(15);ylims=(-25,0), fig_prefix=&quot;Gryanik12&quot;)</code></pre><p><img src="../Gryanik12_phi_h.svg" alt/> <img src="../Gryanik12_phi_m.svg" alt/> <img src="../Gryanik12_psi_h.svg" alt/> <img src="../Gryanik12_psi_m.svg" alt/></p><h2 id="Fig-3-(Gryanik)"><a class="docs-heading-anchor" href="#Fig-3-(Gryanik)">Fig 3 (Gryanik)</a><a id="Fig-3-(Gryanik)-1"></a><a class="docs-heading-anchor-permalink" href="#Fig-3-(Gryanik)" title="Permalink"></a></h2><pre><code class="language-julia">save_ϕ_figs(args, 10 .^ (FT(-3):0.1:FT(2)); ylims=(0.1,10^2), xaxis=:log10, yaxis=:log10, fig_prefix=&quot;Gryanik3&quot;)</code></pre><p><img src="../Gryanik3_phi_h.svg" alt/> <img src="../Gryanik3_phi_m.svg" alt/></p><h2 id="Figs-1,2-(Businger)"><a class="docs-heading-anchor" href="#Figs-1,2-(Businger)">Figs 1,2 (Businger)</a><a id="Figs-1,2-(Businger)-1"></a><a class="docs-heading-anchor-permalink" href="#Figs-1,2-(Businger)" title="Permalink"></a></h2><pre><code class="language-julia">save_ϕ_figs(args, FT(-2.5):FT(0.01):FT(2);ylims=(-1,8),fig_prefix=&quot;Businger&quot;)</code></pre><p><img src="../Businger_phi_h.svg" alt/> <img src="../Businger_phi_m.svg" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../Thermodynamics/">« Thermodynamics</a><a class="docs-footer-nextpage" href="../../Atmos/TemperatureProfiles/">Temperature profiles »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 15 October 2020 18:49">Thursday 15 October 2020</span>. Using Julia version 1.5.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
