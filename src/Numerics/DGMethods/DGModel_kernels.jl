@@ -832,6 +832,42 @@ Computational kernel: Evaluate the surface integrals on right-hand side of a
     end
 end
 
+# @kernel function volume_gradients!(
+#     ::HorizontalDirection,
+#     balance_law::BalanceLaw,
+#     ::Val{dim},
+#     ::Val{polyorder},
+#     state_prognostic,
+#     state_gradient_flux,
+#     Qhypervisc_grad,
+#     state_auxiliary,
+#     vgeo,
+#     t,
+#     D,
+#     ::Val{hypervisc_indexmap},
+#     elems,
+# ) where {dim, polyorder, hypervisc_indexmap}
+# ...
+# end
+
+# @kernel function volume_gradients!(
+#     ::VerticalDirection,
+#     balance_law::BalanceLaw,
+#     ::Val{dim},
+#     ::Val{polyorder},
+#     state_prognostic,
+#     state_gradient_flux,
+#     Qhypervisc_grad,
+#     state_auxiliary,
+#     vgeo,
+#     t,
+#     D,
+#     ::Val{hypervisc_indexmap},
+#     elems,
+# ) where {dim, polyorder, hypervisc_indexmap}
+# ...
+# end
+
 @kernel function volume_gradients!(
     balance_law::BalanceLaw,
     ::Val{dim},

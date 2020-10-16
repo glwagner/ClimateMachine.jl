@@ -189,6 +189,7 @@ struct DiscontinuousSpectralElementGrid{
         Imat = indefinite_integral_interpolation_matrix(ξ, ω)
         D = Elements.spectralderivative(ξ)
 
+        # Mappings will need to be updated
         (vmap⁻, vmap⁺) = mappings(
             N,
             topology.elemtoelem,
