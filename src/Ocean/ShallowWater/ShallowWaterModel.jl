@@ -96,7 +96,7 @@ function vars_state(m::SWModel, ::Prognostic, T)
 end
 
 function init_state_prognostic!(m::SWModel, state::Vars, aux::Vars, localgeo, t)
-    ocean_init_state!(m, m.problem, state, aux, localgeo.coord, t)
+    ocean_init_state!(m, m.problem, state, aux, localgeo, t)
 end
 
 function vars_state(m::SWModel, ::Auxiliary, T)
