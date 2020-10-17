@@ -10,6 +10,15 @@ CurrentModule = ClimateMachine.BalanceLaws
 BalanceLaw
 ```
 
+## Source variable types
+
+```@docs
+AbstractSource
+Flux1ˢᵗOrder
+Flux2ⁿᵈOrder
+NonConservative
+```
+
 ## State variable types
 
 ```@docs

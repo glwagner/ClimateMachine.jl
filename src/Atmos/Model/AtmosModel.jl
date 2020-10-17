@@ -381,6 +381,15 @@ include("linear.jl")
 include("courant.jl")
 include("filters.jl")
 
+ρ_fluxes_first_order(::AtmosModel) = (ρAdvect(),)
+
+ρu_pressure(ref_state::HydrostaticState) = ρuPressureHydrostatic()
+ρu_pressure(ref_state) = ρuPressureNonHydrostatic()
+
+ρu_fluxes_first_order(m::AtmosModel) = (ρuAdvect(), ρu_pressure(m.ref_state))
+
+ρe_fluxes_first_order(::AtmosModel) = (ρeAdvect(), ρePressure())
+
 """
     flux_first_order!(
         m::AtmosModel,
@@ -401,29 +410,79 @@ equations.
     t::Real,
     direction,
 )
-    ρ = state.ρ
-    ρinv = 1 / ρ
-    ρu = state.ρu
-    u = ρinv * ρu
+    # Zeroing out, just in case
+    flux.ρ = flux.ρ * 0
+    flux.ρu = flux.ρu * 0
+    flux.ρe = flux.ρe * 0
+    ts = recover_thermo_state(m, state, aux)
 
-    # advective terms
-    flux.ρ = ρ * u
-    flux.ρu = ρ * u .* u'
-    flux.ρe = u * state.ρe
+    ρ_fluxes = ρ_fluxes_first_order(m)
+    ntuple(length(ρ_fluxes)) do i
+        flux.ρ += _flux_(m, state, aux, t, direction, ρ_fluxes[i], ts)
+    end
+
+    ρu_fluxes = ρu_fluxes_first_order(m)
+    ntuple(length(ρu_fluxes)) do i
+        flux.ρu += _flux_(m, state, aux, t, direction, ρu_fluxes[i], ts)
+    end
+
+    ρe_fluxes = ρe_fluxes_first_order(m)
+    ntuple(length(ρe_fluxes)) do i
+        flux.ρe += _flux_(m, state, aux, t, direction, ρe_fluxes[i], ts)
+    end
 
     # pressure terms
-    ts = recover_thermo_state(m, state, aux)
-    p = air_pressure(ts)
-    if m.ref_state isa HydrostaticState
-        flux.ρu += (p - aux.ref_state.p) * I
-    else
-        flux.ρu += p * I
-    end
-    flux.ρe += u * p
     flux_radiation!(m.radiation, m, flux, state, aux, t)
     flux_moisture!(m.moisture, m, flux, state, aux, t)
     flux_tracers!(m.tracers, m, flux, state, aux, t)
     flux_first_order!(m.turbconv, m, flux, state, aux, t)
+end
+
+struct ρAdvect <: Flux1ˢᵗOrder end
+function _flux_(m::AtmosModel, state, aux, t, direction, ::ρAdvect, ts)
+    return state.ρu
+end
+
+struct ρuAdvect <: Flux1ˢᵗOrder end
+function _flux_(m::AtmosModel, state, aux, t, direction, ::ρuAdvect, ts)
+    return state.ρu .* (state.ρu / state.ρ)'
+end
+
+struct ρuPressureHydrostatic <: Flux1ˢᵗOrder end
+function _flux_(
+    m::AtmosModel,
+    state,
+    aux,
+    t,
+    direction,
+    ::ρuPressureHydrostatic,
+    ts,
+)
+    # @assert m.ref_state isa HydrostaticState # can check, if needed
+    return (air_pressure(ts) - aux.ref_state.p) * I
+end
+
+struct ρuPressureNonHydrostatic <: Flux1ˢᵗOrder end
+function _flux_(
+    m::AtmosModel,
+    state,
+    aux,
+    t,
+    direction,
+    ::ρuPressureNonHydrostatic,
+    ts,
+)
+    return air_pressure(ts) * I
+end
+
+struct ρeAdvect <: Flux1ˢᵗOrder end
+function _flux_(m::AtmosModel, state, aux, t, direction, ::ρeAdvect, ts)
+    return (state.ρu / state.ρ) * state.ρe
+end
+
+struct ρePressure <: Flux1ˢᵗOrder end
+function _flux_(m::AtmosModel, state, aux, t, direction, ::ρePressure, ts)
+    return state.ρu / state.ρ * air_pressure(ts)
 end
 
 function compute_gradient_argument!(
