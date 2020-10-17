@@ -381,6 +381,12 @@ include("linear.jl")
 include("courant.jl")
 include("filters.jl")
 
+include("tendencies_mass.jl")
+include("tendencies_momentum.jl")
+include("tendencies_energy.jl")
+include("tendencies.jl")
+include("tendencies_sum.jl")
+
 """
     flux_first_order!(
         m::AtmosModel,
@@ -401,25 +407,14 @@ equations.
     t::Real,
     direction,
 )
-    ρ = state.ρ
-    ρinv = 1 / ρ
-    ρu = state.ρu
-    u = ρinv * ρu
-
-    # advective terms
-    flux.ρ = ρ * u
-    flux.ρu = ρ * u .* u'
-    flux.ρe = u * state.ρe
+    ts = recover_thermo_state(m, state, aux)
+    tend = Flux1ˢᵗOrder()
+    args = (m, state, aux, t, ts, direction)
+    flux.ρ = Σfluxes(ρ_tend(m, tend), args...)
+    flux.ρu = Σfluxes(ρu_tend(m, tend), args...)
+    flux.ρe = Σfluxes(ρe_tend(m, tend), args...)
 
     # pressure terms
-    ts = recover_thermo_state(m, state, aux)
-    p = air_pressure(ts)
-    if m.ref_state isa HydrostaticState
-        flux.ρu += (p - aux.ref_state.p) * I
-    else
-        flux.ρu += p * I
-    end
-    flux.ρe += u * p
     flux_radiation!(m.radiation, m, flux, state, aux, t)
     flux_moisture!(m.moisture, m, flux, state, aux, t)
     flux_tracers!(m.tracers, m, flux, state, aux, t)

@@ -28,5 +28,6 @@ export BalanceLaw,
 
 include("state_types.jl")
 include("interface.jl")
+include("source_types.jl")
 
 end
