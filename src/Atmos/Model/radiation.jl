@@ -29,13 +29,5 @@ function reverse_integral_load_auxiliary_state!(
     state::Vars,
     aux::Vars,
 ) end
-function flux_radiation!(
-    ::RadiationModel,
-    atmos::AtmosModel,
-    flux::Grad,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-) end
 
 struct NoRadiation <: RadiationModel end

@@ -381,15 +381,6 @@ include("linear.jl")
 include("courant.jl")
 include("filters.jl")
 
-ρ_fluxes_first_order(::AtmosModel) = (ρAdvect(),)
-
-ρu_pressure(ref_state::HydrostaticState) = ρuPressureHydrostatic()
-ρu_pressure(ref_state) = ρuPressureNonHydrostatic()
-
-ρu_fluxes_first_order(m::AtmosModel) = (ρuAdvect(), ρu_pressure(m.ref_state))
-
-ρe_fluxes_first_order(::AtmosModel) = (ρeAdvect(), ρePressure())
-
 """
     flux_first_order!(
         m::AtmosModel,
@@ -416,74 +407,22 @@ equations.
     flux.ρe = flux.ρe * 0
     ts = recover_thermo_state(m, state, aux)
 
-    ρ_fluxes = ρ_fluxes_first_order(m)
-    ntuple(length(ρ_fluxes)) do i
-        flux.ρ += _flux_(m, state, aux, t, direction, ρ_fluxes[i], ts)
-    end
-
-    ρu_fluxes = ρu_fluxes_first_order(m)
-    ntuple(length(ρu_fluxes)) do i
-        flux.ρu += _flux_(m, state, aux, t, direction, ρu_fluxes[i], ts)
-    end
-
-    ρe_fluxes = ρe_fluxes_first_order(m)
-    ntuple(length(ρe_fluxes)) do i
-        flux.ρe += _flux_(m, state, aux, t, direction, ρe_fluxes[i], ts)
-    end
-
-    # pressure terms
-    flux_radiation!(m.radiation, m, flux, state, aux, t)
-    flux_moisture!(m.moisture, m, flux, state, aux, t)
+    args = (m, state, aux, t, direction)
+    tend = Flux1ˢᵗOrder()
+    flux.ρ = Σfluxes(args..., ρ_tend(m, tend), ts)
+    flux.ρu = Σfluxes(args..., ρu_tend(m, tend), ts)
+    flux.ρe = Σfluxes(args..., ρe_tend(m, tend), ts)
+    flux_first_order!(m.moisture, m, flux, state, aux, t)
     flux_tracers!(m.tracers, m, flux, state, aux, t)
     flux_first_order!(m.turbconv, m, flux, state, aux, t)
 end
 
-struct ρAdvect <: Flux1ˢᵗOrder end
-function _flux_(m::AtmosModel, state, aux, t, direction, ::ρAdvect, ts)
-    return state.ρu
-end
-
-struct ρuAdvect <: Flux1ˢᵗOrder end
-function _flux_(m::AtmosModel, state, aux, t, direction, ::ρuAdvect, ts)
-    return state.ρu .* (state.ρu / state.ρ)'
-end
-
-struct ρuPressureHydrostatic <: Flux1ˢᵗOrder end
-function _flux_(
-    m::AtmosModel,
-    state,
-    aux,
-    t,
-    direction,
-    ::ρuPressureHydrostatic,
-    ts,
-)
-    # @assert m.ref_state isa HydrostaticState # can check, if needed
-    return (air_pressure(ts) - aux.ref_state.p) * I
-end
-
-struct ρuPressureNonHydrostatic <: Flux1ˢᵗOrder end
-function _flux_(
-    m::AtmosModel,
-    state,
-    aux,
-    t,
-    direction,
-    ::ρuPressureNonHydrostatic,
-    ts,
-)
-    return air_pressure(ts) * I
-end
-
-struct ρeAdvect <: Flux1ˢᵗOrder end
-function _flux_(m::AtmosModel, state, aux, t, direction, ::ρeAdvect, ts)
-    return (state.ρu / state.ρ) * state.ρe
-end
-
-struct ρePressure <: Flux1ˢᵗOrder end
-function _flux_(m::AtmosModel, state, aux, t, direction, ::ρePressure, ts)
-    return state.ρu / state.ρ * air_pressure(ts)
-end
+include("tendencies_multiphysics.jl") # types for multi-physics tendencies
+include("tend_mass.jl")               # specify individual tendencies for mass
+include("tend_momentum.jl")           # specify individual tendencies for momentum
+include("tend_energy.jl")             # specify individual tendencies for energy
+include("tend_moisture.jl")           # specify individual tendencies for moisture
+include("tendencies.jl")
 
 function compute_gradient_argument!(
     atmos::AtmosModel,
@@ -588,11 +527,12 @@ function. Contributions from subcomponents are then assembled (pointwise).
     aux::Vars,
     t::Real,
 )
-    ν, D_t, τ = turbulence_tensors(atmos, state, diffusive, aux, t)
-    sponge_viscosity_modifier!(atmos, atmos.viscoussponge, ν, D_t, τ, aux)
-    d_h_tot = -D_t .* diffusive.∇h_tot
-    flux_second_order!(atmos, flux, state, τ, d_h_tot)
-    flux_second_order!(atmos.moisture, flux, state, diffusive, aux, t, D_t)
+    tend = Flux2ⁿᵈOrder()
+    args = (m, state, diffusive, hyperdiffusive, aux, t)
+    flux.ρu = Σfluxes(args..., ρu_tend(m, tend), ts)
+    flux.ρe = Σfluxes(args..., ρe_tend(m, tend), ts)
+
+    flux_second_order!(atmos.moisture, atmos, flux, state, diffusive, aux, t)
     flux_second_order!(
         atmos.hyperdiffusion,
         flux,
@@ -604,19 +544,6 @@ function. Contributions from subcomponents are then assembled (pointwise).
     )
     flux_second_order!(atmos.tracers, flux, state, diffusive, aux, t, D_t)
     flux_second_order!(atmos.turbconv, atmos, flux, state, diffusive, aux, t)
-end
-
-#TODO: Consider whether to not pass ρ and ρu (not state), foc BCs reasons
-@inline function flux_second_order!(
-    atmos::AtmosModel,
-    flux::Grad,
-    state::Vars,
-    τ,
-    d_h_tot,
-)
-    flux.ρu += τ * state.ρ
-    flux.ρe += τ * state.ρu
-    flux.ρe += d_h_tot * state.ρ
 end
 
 @inline function wavespeed(

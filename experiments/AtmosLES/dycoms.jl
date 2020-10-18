@@ -70,13 +70,6 @@ function reverse_integral_set_auxiliary_state!(
     aux::Vars,
     integ::Vars,
 ) end
-function flux_radiation!(
-    ::RadiationModel,
-    flux::Grad,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-) end
 
 # ------------------------ Begin Radiation Model ---------------------- #
 """
@@ -143,33 +136,6 @@ function reverse_integral_set_auxiliary_state!(
     integral::Vars,
 )
     aux.∫dnz.radiation.attenuation_coeff = integral.radiation.attenuation_coeff
-end
-
-function flux_radiation!(
-    m::DYCOMSRadiation,
-    atmos::AtmosModel,
-    flux::Grad,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-)
-    FT = eltype(flux)
-    z = altitude(atmos, aux)
-    Δz_i = max(z - m.z_i, -zero(FT))
-    # Constants
-    upward_flux_from_cloud = m.F_0 * exp(-aux.∫dnz.radiation.attenuation_coeff)
-    upward_flux_from_sfc = m.F_1 * exp(-aux.∫dz.radiation.attenuation_coeff)
-    free_troposphere_flux =
-        m.ρ_i *
-        FT(cp_d(atmos.param_set)) *
-        m.D_subsidence *
-        m.α_z *
-        cbrt(Δz_i) *
-        (Δz_i / 4 + m.z_i)
-    F_rad =
-        upward_flux_from_sfc + upward_flux_from_cloud + free_troposphere_flux
-    ẑ = vertical_unit_vector(atmos, aux)
-    flux.ρe += F_rad * ẑ
 end
 # -------------------------- End Radiation Model ------------------------ #
 

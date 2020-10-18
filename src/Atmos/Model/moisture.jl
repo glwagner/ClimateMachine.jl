@@ -3,6 +3,36 @@ export DryModel, EquilMoist, NonEquilMoist
 #### Moisture component in atmosphere model
 abstract type MoistureModel end
 
+abstract type MoistModel <: MoistureModel end
+
+"""
+    DryModel
+
+Assumes the moisture components is in the dry limit.
+"""
+struct DryModel <: MoistureModel end
+
+"""
+    EquilMoist
+
+Assumes the moisture components are computed via thermodynamic equilibrium.
+"""
+Base.@kwdef struct EquilMoist{FT} <: MoistModel
+    maxiter::Int = 3
+    tolerance::FT = FT(1e-1)
+end
+
+"""
+    NonEquilMoist
+
+Does not assume that the moisture components are in equilibrium.
+"""
+struct NonEquilMoist <: MoistModel end
+
+#####
+##### Moisture model methods
+#####
+
 vars_state(::MoistureModel, ::AbstractStateType, FT) = @vars()
 
 function atmos_nodal_update_auxiliary_state!(
@@ -12,14 +42,25 @@ function atmos_nodal_update_auxiliary_state!(
     aux::Vars,
     t::Real,
 ) end
-function flux_moisture!(
-    ::MoistureModel,
-    ::AtmosModel,
+function flux_first_order!(
+    moisture::MoistureModel,
+    m::AtmosModel,
     flux::Grad,
     state::Vars,
     aux::Vars,
     t::Real,
-) end
+)
+    ts = recover_thermo_state(atmos, state, aux)
+    args = (m, state, aux, t, direction, ts)
+    tend = Flux1ˢᵗOrder()
+    if moisture isa MoistModel
+        flux.moisture.ρq_tot = Σfluxes(ρq_tot_tend(m, tend), args...)
+    end
+    if moisture isa NonEquilMoist
+        flux.moisture.ρq_liq = Σfluxes(ρq_liq_tend(m, tend), args...)
+        flux.moisture.ρq_ice = Σfluxes(ρq_ice_tend(m, tend), args...)
+    end
+end
 function compute_gradient_flux!(
     ::MoistureModel,
     diffusive,
@@ -30,14 +71,25 @@ function compute_gradient_flux!(
 ) end
 function flux_second_order!(
     ::MoistureModel,
+    atmos::AtmosModel,
     flux::Grad,
     state::Vars,
     diffusive::Vars,
     aux::Vars,
     t::Real,
-    D_t,
-) end
-function flux_first_order!(::MoistureModel, _...) end
+)
+    tend = Flux2ⁿᵈOrder()
+    ts = recover_thermo_state(atmos, state, aux)
+    args = (m, state, diffusive, hyperdiffusive, aux, t, ts)
+    if moisture isa MoistModel
+        flux.moisture.ρq_tot = Σfluxes(ρq_tot_tend(m, tend), args...)
+    end
+    if moisture isa NonEquilMoist
+        flux.moisture.ρq_liq = Σfluxes(ρq_liq_tend(m, tend), args...)
+        flux.moisture.ρq_ice = Σfluxes(ρq_ice_tend(m, tend), args...)
+    end
+end
+
 function compute_gradient_argument!(
     ::MoistureModel,
     transform::Vars,
@@ -63,12 +115,9 @@ internal_energy(atmos::AtmosModel, state::Vars, aux::Vars) =
     )
 end
 
-"""
-    DryModel
-
-Assumes the moisture components is in the dry limit.
-"""
-struct DryModel <: MoistureModel end
+#####
+##### DryModel
+#####
 
 vars_state(::DryModel, ::Auxiliary, FT) = @vars(θ_v::FT, air_T::FT)
 @inline function atmos_nodal_update_auxiliary_state!(
@@ -84,20 +133,9 @@ vars_state(::DryModel, ::Auxiliary, FT) = @vars(θ_v::FT, air_T::FT)
     nothing
 end
 
-"""
-    EquilMoist
-
-Assumes the moisture components are computed via thermodynamic equilibrium.
-"""
-struct EquilMoist{FT} <: MoistureModel
-    maxiter::Int
-    tolerance::FT
-end
-EquilMoist{FT}(;
-    maxiter::IT = 3,
-    tolerance::FT = FT(1e-1),
-) where {FT <: AbstractFloat, IT <: Int} = EquilMoist{FT}(maxiter, tolerance)
-
+#####
+##### EquilMoist model
+#####
 
 vars_state(::EquilMoist, ::Prognostic, FT) = @vars(ρq_tot::FT)
 vars_state(::EquilMoist, ::Gradient, FT) = @vars(q_tot::FT)
@@ -143,44 +181,9 @@ function compute_gradient_flux!(
     diffusive.moisture.∇q_tot = ∇transform.moisture.q_tot
 end
 
-function flux_moisture!(
-    moist::EquilMoist,
-    atmos::AtmosModel,
-    flux::Grad,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-)
-    ρ = state.ρ
-    u = state.ρu / ρ
-    flux.moisture.ρq_tot += u * state.moisture.ρq_tot
-end
-
-function flux_second_order!(
-    moist::EquilMoist,
-    flux::Grad,
-    state::Vars,
-    diffusive::Vars,
-    aux::Vars,
-    t::Real,
-    D_t,
-)
-    d_q_tot = (-D_t) .* diffusive.moisture.∇q_tot
-    flux_second_order!(moist, flux, state, d_q_tot)
-end
-#TODO: Consider whether to not pass ρ and ρu (not state), foc BCs reasons
-function flux_second_order!(moist::EquilMoist, flux::Grad, state::Vars, d_q_tot)
-    flux.ρ += d_q_tot * state.ρ
-    flux.ρu += d_q_tot .* state.ρu'
-    flux.moisture.ρq_tot += d_q_tot * state.ρ
-end
-
-"""
-    NonEquilMoist
-
-Does not assume that the moisture components are in equilibrium.
-"""
-struct NonEquilMoist <: MoistureModel end
+#####
+##### NonEquilMoist
+#####
 
 vars_state(::NonEquilMoist, ::Prognostic, FT) =
     @vars(ρq_tot::FT, ρq_liq::FT, ρq_ice::FT)
@@ -233,48 +236,3 @@ function compute_gradient_flux!(
     diffusive.moisture.∇q_ice = ∇transform.moisture.q_ice
 end
 
-function flux_moisture!(
-    moist::NonEquilMoist,
-    atmos::AtmosModel,
-    flux::Grad,
-    state::Vars,
-    aux::Vars,
-    t::Real,
-)
-    ρ = state.ρ
-    u = state.ρu / ρ
-    flux.moisture.ρq_tot += u * state.moisture.ρq_tot
-    flux.moisture.ρq_liq += u * state.moisture.ρq_liq
-    flux.moisture.ρq_ice += u * state.moisture.ρq_ice
-end
-
-function flux_second_order!(
-    moist::NonEquilMoist,
-    flux::Grad,
-    state::Vars,
-    diffusive::Vars,
-    aux::Vars,
-    t::Real,
-    D_t,
-)
-    d_q_tot = (-D_t) .* diffusive.moisture.∇q_tot
-    d_q_liq = (-D_t) .* diffusive.moisture.∇q_liq
-    d_q_ice = (-D_t) .* diffusive.moisture.∇q_ice
-
-    flux_second_order!(moist, flux, state, d_q_tot, d_q_liq, d_q_ice)
-end
-
-function flux_second_order!(
-    moist::NonEquilMoist,
-    flux::Grad,
-    state::Vars,
-    d_q_tot,
-    d_q_liq,
-    d_q_ice,
-)
-    flux.ρ += d_q_tot * state.ρ
-    flux.ρu += d_q_tot .* state.ρu'
-    flux.moisture.ρq_tot += d_q_tot * state.ρ
-    flux.moisture.ρq_liq += d_q_liq * state.ρ
-    flux.moisture.ρq_ice += d_q_ice * state.ρ
-end
