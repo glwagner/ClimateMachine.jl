@@ -101,7 +101,7 @@ function main(::Type{FT}) where {FT}
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(400)
+    timeend = FT(1*3600)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
@@ -112,7 +112,7 @@ function main(::Type{FT}) where {FT}
 
     N_updrafts = 1
     N_quad = 3
-    turbconv = EDMF(FT, N_updrafts, N_quad)
+    turbconv = EDMF(FT, N_updrafts, N_quad, zmax)
 
     model =
         bomex_model(FT, config_type, zmax, surface_flux; turbconv = turbconv)
@@ -135,7 +135,7 @@ function main(::Type{FT}) where {FT}
         driver_config,
         init_on_cpu = true,
         Courant_number = CFLmax,
-        fixed_number_of_steps = 1000,
+        # fixed_number_of_steps = 1000,
         # fixed_number_of_steps=1082 # last timestep before crash
     )
 
@@ -174,6 +174,35 @@ function main(::Type{FT}) where {FT}
             solver_config.dg.grid,
             TMARFilter(),
         )
+        bl = solver_config.dg.balance_law
+        st = vars_state(bl, Prognostic(), eltype(Q))
+        aux = vars_state(bl, Auxiliary(), eltype(Q))
+        a_min = bl.turbconv.subdomains.a_min
+        a_max = bl.turbconv.subdomains.a_max
+        i_ρ = varsindex(st, :ρ)
+        ρ_gm = solver_config.Q[:,i_ρ,:]
+        i_ρaθ_liq_en = varsindex(aux, :turbconv, :environment,:ρaθ_liq)
+        ρaθ_liq_en = solver_config.dg.state_auxiliary[:,i_ρaθ_liq_en,:]
+        ρaθ_liq_up = FT(0)
+        for i in 1:n_updrafts(bl.turbconv)
+            i_ρaθ_liq_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaθ_liq)
+            ρaθ_liq_up = ρaθ_liq_up.+solver_config.Q[:,i_ρaθ_liq_up,:]
+        end
+        ρθ_liq_gm = ρaθ_liq_up .+ ρaθ_liq_en
+        i_ρq_tot_gm = varsindex(st, :moisture, :ρq_tot)
+        ρq_tot_gm = solver_config.Q[:,i_ρq_tot_gm,:]
+        for i in 1:n_updrafts(bl.turbconv)
+            i_ρa_up = varsindex(st, :turbconv, :updraft, Val(i), :ρa)
+            i_ρaθ_liq_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaθ_liq)
+            i_ρaq_tot_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaq_tot)
+            i_ρaw_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaw)
+
+            a_up_mask = solver_config.Q[:,i_ρa_up,:] .< ρ_gm*a_min
+            solver_config.Q[:,i_ρa_up,:]      .+= a_up_mask.*(ρ_gm.*a_min .- solver_config.Q[:,i_ρa_up,:])
+            solver_config.Q[:,i_ρaθ_liq_up,:] .+= a_up_mask.*(ρθ_liq_gm.*a_min .- solver_config.Q[:,i_ρaθ_liq_up,:])
+            solver_config.Q[:,i_ρaq_tot_up,:] .+= a_up_mask.*(ρq_tot_gm.*a_min .- solver_config.Q[:,i_ρaq_tot_up,:])
+            solver_config.Q[:,i_ρaw_up,:]     .+= a_up_mask.*(0 .- solver_config.Q[:,i_ρaw_up,:])
+        end
         nothing
     end
 

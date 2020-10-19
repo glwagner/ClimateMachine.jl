@@ -5,10 +5,8 @@ using DocStringExtensions
 
 """
     EntrainmentDetrainment
-
 An Entrainment-Detrainment model for EDMF, containing
 all related model and free parameters.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -39,10 +37,8 @@ end
 
 """
     SubdomainModel
-
 A subdomain model for EDMF, containing
 all related model and free parameters.
-
 TODO: `a_max` is valid for all subdomains,
     but it is insufficient to ensure `a_en`
     is not negative. Limits can be imposed
@@ -50,7 +46,6 @@ TODO: `a_max` is valid for all subdomains,
     is dictated by 1 - Σᵢ aᵢ, which must be
     somehow satisfied by regularizing prognostic
     source terms.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -72,10 +67,8 @@ end
 
 """
     SurfaceModel
-
 A surface model for EDMF, containing all boundary
 values and parameters needed by the model.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -108,7 +101,6 @@ end
 
 """
     SurfaceModel{FT}(N_up) where {FT}
-
 Constructor for `SurfaceModel` for EDMF, given:
  - `N_up`, the number of updrafts
 """
@@ -134,10 +126,8 @@ end
 
 """
     PressureModel
-
 A pressure model for EDMF, containing
 all related model and free parameters.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -154,10 +144,8 @@ end
 
 """
     MixingLengthModel
-
 A mixing length model for EDMF, containing
 all related model and free parameters.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -190,6 +178,20 @@ Base.@kwdef struct MixingLengthModel{FT <: AbstractFloat}
     smin_rm::FT = 1.5
 end
 
+Base.@kwdef struct NoSponge{FT} <: Source
+    end
+
+Base.@kwdef struct EDMFSponge{FT} <: Source
+    "Maximum domain altitude (m)"
+    z_max::FT
+    "Altitude at with sponge starts (m)"
+    z_sponge::FT = 2400
+    "Sponge Strength 0 ⩽ α_max ⩽ 1"
+    α_max::FT = 0.75
+    "Sponge exponent"
+    γ::FT = 2
+end
+
 abstract type AbstractStatisticalModel end
 struct SubdomainMean <: AbstractStatisticalModel end
 struct GaussQuad <: AbstractStatisticalModel end
@@ -197,11 +199,9 @@ struct LogNormalQuad <: AbstractStatisticalModel end
 
 """
     MicrophysicsModel
-
 A microphysics model for EDMF, containing
 all related model and free parameters and
 assumed subdomain distributions.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -215,7 +215,6 @@ end
         FT;
         statistical_model = SubdomainMean()
     )
-
 Constructor for `MicrophysicsModel` for EDMF, given:
  - `FT`, the float type used
  - `statistical_model`, the assumed environmental distribution
@@ -240,15 +239,13 @@ Base.@kwdef struct Updraft{FT <: AbstractFloat} <: BalanceLaw end
 
 """
     EDMF <: TurbulenceConvectionModel
-
 A turbulence convection model for the EDMF
 scheme, containing all closure models and
 free parameters.
-
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML, SD} <:
+Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML, SD, SM} <:
                    TurbulenceConvectionModel
     "Updrafts"
     updraft::UP
@@ -266,6 +263,8 @@ Base.@kwdef struct EDMF{FT <: AbstractFloat, N, UP, EN, ED, P, S, MP, ML, SD} <:
     mix_len::ML
     "Subdomain model"
     subdomains::SD
+    "Sponge model"
+    sponge::SM
 end
 
 """
@@ -298,7 +297,8 @@ Constructor for `EDMF` subgrid-scale scheme, given:
 function EDMF(
     FT,
     N_up,
-    N_quad;
+    N_quad,
+    zmax;
     updraft = ntuple(i -> Updraft{FT}(), N_up),
     environment = Environment{FT, N_quad}(),
     entr_detr = EntrainmentDetrainment{FT}(),
@@ -307,6 +307,7 @@ function EDMF(
     micro_phys = MicrophysicsModel(FT),
     mix_len = MixingLengthModel{FT}(),
     subdomain = SubdomainModel(FT, N_up),
+    sponge = EDMFSponge{FT}(;z_max=zmax),
 )
     args = (
         updraft,
@@ -317,6 +318,7 @@ function EDMF(
         micro_phys,
         mix_len,
         subdomain,
+        sponge,
     )
     return EDMF{FT, N_up, typeof.(args)...}(args...)
 end
@@ -326,7 +328,6 @@ import ClimateMachine.TurbulenceConvection: turbconv_sources, turbconv_bcs
 
 """
     EDMFBCs <: TurbConvBC
-
 Boundary conditions for EDMF.
 """
 struct EDMFBCs <: TurbConvBC end
