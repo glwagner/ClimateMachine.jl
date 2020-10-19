@@ -44,8 +44,8 @@ using ClimateMachine.Thermodynamics:
     internal_energy,
     q_vap_saturation,
     relative_humidity,
-    TemperatureSHumEquil,
-    TemperatureSHumNonEquil,
+    PhaseEquil_ρTq,
+    PhaseNonEquil_ρTq,
     air_temperature,
     latent_heat_fusion,
     Liquid,
@@ -213,11 +213,11 @@ function init_state_prognostic!(
     m::KinematicModel,
     state::Vars,
     aux::Vars,
-    local_geom,
+    localgeo,
     t,
     args...,
 )
-    m.init_state_prognostic(m, state, aux, local_geom, t, args...)
+    m.init_state_prognostic(m, state, aux, localgeo, t, args...)
 end
 
 function boundary_state!(

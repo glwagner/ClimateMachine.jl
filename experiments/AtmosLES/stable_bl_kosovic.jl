@@ -150,7 +150,8 @@ end
 """
   Initial Condition for StableBoundaryLayer LES
 """
-function init_problem!(problem, bl, state, aux, (x, y, z), t)
+function init_problem!(problem, bl, state, aux, localgeo, t)
+    (x, y, z) = localgeo.coord
     # Problem floating point precision
     FT = eltype(state)
     R_gas::FT = R_d(bl.param_set)
@@ -177,7 +178,7 @@ function init_problem!(problem, bl, state, aux, (x, y, z), t)
     π_exner = FT(1) - _grav / (c_p * θ) * z # exner pressure
     ρ = p0 / (R_gas * θ) * (π_exner)^(c_v / R_gas) # density
     # Establish thermodynamic state and moist phase partitioning
-    TS = LiquidIcePotTempSHumEquil(bl.param_set, θ_liq, ρ, q_tot)
+    TS = PhaseEquil_ρθq(bl.param_set, ρ, θ_liq, q_tot)
 
     # Compute momentum contributions
     ρu = ρ * u
@@ -205,7 +206,7 @@ function surface_temperature_variation(state, aux, t)
     ρ = state.ρ
     q_tot = state.moisture.ρq_tot / ρ
     θ_liq_sfc = FT(265) - FT(1 / 4) * (t / 3600)
-    TS = LiquidIcePotTempSHumEquil(param_set, θ_liq_sfc, ρ, q_tot)
+    TS = PhaseEquil_ρθq(param_set, ρ, θ_liq_sfc, q_tot)
     return air_temperature(TS)
 end
 

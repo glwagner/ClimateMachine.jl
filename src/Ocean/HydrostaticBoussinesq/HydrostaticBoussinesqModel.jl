@@ -148,7 +148,7 @@ sets the initial value for state variables
 dispatches to ocean_init_state! which is defined in a problem file such as SimpleBoxProblem.jl
 """
 function init_state_prognostic!(m::HBModel, Q::Vars, A::Vars, localgeo, t)
-    return ocean_init_state!(m, m.problem, Q, A, localgeo.coords, t)
+    return ocean_init_state!(m, m.problem, Q, A, localgeo, t)
 end
 
 """

@@ -288,7 +288,8 @@ end
 """
   Initial Condition for BOMEX LES
 """
-function init_bomex!(problem, bl, state, aux, (x, y, z), t)
+function init_bomex!(problem, bl, state, aux, localgeo, t)
+    (x, y, z) = localgeo.coord
     # This experiment runs the BOMEX LES Configuration
     # (Shallow cumulus cloud regime)
     # x,y,z imply eastward, northward and altitude coordinates in `[m]`
@@ -353,7 +354,7 @@ function init_bomex!(problem, bl, state, aux, (x, y, z), t)
     P = P_sfc * exp(-z / H)
 
     # Establish thermodynamic state and moist phase partitioning
-    TS = LiquidIcePotTempSHumEquil_given_pressure(bl.param_set, θ_liq, P, q_tot)
+    TS = PhaseEquil_pθq(bl.param_set, P, θ_liq, q_tot)
     T = air_temperature(TS)
     ρ = air_density(TS)
     q_pt = PhasePartition(TS)
@@ -382,7 +383,7 @@ function init_bomex!(problem, bl, state, aux, (x, y, z), t)
         state.ρe += rand() * ρe_tot / 100
         state.moisture.ρq_tot += rand() * ρ * q_tot / 100
     end
-    init_state_prognostic!(bl.turbconv, bl, state, aux, (x, y, z), t)
+    init_state_prognostic!(bl.turbconv, bl, state, aux, localgeo, t)
 end
 
 function bomex_model(

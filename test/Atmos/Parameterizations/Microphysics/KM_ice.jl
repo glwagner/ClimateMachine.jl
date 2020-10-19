@@ -64,14 +64,15 @@ function vars_state(m::KinematicModel, ::Auxiliary, FT)
     end
 end
 
-function init_kinematic_eddy!(eddy_model, state, aux, local_geo, t, spline_fun)
+function init_kinematic_eddy!(eddy_model, state, aux, localgeo, t, spline_fun)
+
     FT = eltype(state)
     _grav::FT = grav(param_set)
 
     dc = eddy_model.data_config
 
-    (x, y, z) = local_geo.coord
-    (xc, yc, zc) = local_geo.center_coord
+    (x, y, z) = localgeo.coord
+    (xc, yc, zc) = localgeo.center_coord
 
     @inbounds begin
 
@@ -97,7 +98,7 @@ function init_kinematic_eddy!(eddy_model, state, aux, local_geo, t, spline_fun)
         # This is actually different than what comes out from taking a
         # derivative of Ψ from the paper. I have sin(π/2/X(x-xc)).
         # This setup makes more sense to me though.
-        _Z::FT = FT(15000)
+        _Z::FT = FT(15000.0)
         _X::FT = FT(10000)
         _xc::FT = FT(30000)
         _A::FT = FT(4.8 * 1e4)
@@ -189,7 +190,7 @@ function nodal_update_auxiliary_state!(
         # supersaturation
         q = PhasePartition(aux.q_tot, aux.q_liq, aux.q_ice)
         aux.T = air_temperature(param_set, aux.e_int, q)
-        ts_neq = TemperatureSHumNonEquil(param_set, aux.T, state.ρ, q)
+        ts_neq = PhaseNonEquil_ρTq(param_set, state.ρ, aux.T, q)
         aux.S_liq =
             max(0, supersaturation(param_set, q, state.ρ, aux.T, Liquid()))
         aux.S_ice = max(0, supersaturation(param_set, q, state.ρ, aux.T, Ice()))
@@ -201,7 +202,7 @@ function nodal_update_auxiliary_state!(
             terminal_velocity(param_set, snow_param_set, state.ρ, aux.q_sno)
 
         # more diagnostics
-        ts_eq = TemperatureSHumEquil(param_set, aux.T, state.ρ, aux.q_tot)
+        ts_eq = PhaseEquil_ρTq(param_set, state.ρ, aux.T, aux.q_tot)
         q_eq = PhasePartition(ts_eq)
 
         aux.src_cloud_liq = conv_q_vap_to_q_liq_ice(liquid_param_set, q_eq, q)
@@ -472,7 +473,7 @@ function source!(
         T = air_temperature(param_set, e_int, q)
         _Lf = latent_heat_fusion(param_set, T)
         # equilibrium state at current T
-        ts_eq = TemperatureSHumEquil(param_set, T, state.ρ, q_tot)
+        ts_eq = PhaseEquil_ρTq(param_set, state.ρ, T, q_tot)
         q_eq = PhasePartition(ts_eq)
 
         # zero out the source terms
@@ -673,12 +674,12 @@ function main()
 
     # time stepping
     t_ini = FT(0)
-    t_end = FT(60 * 60) #FT(4 * 60 * 60) #TODO
+    t_end = FT(2000) #FT(60 * 60) #FT(4 * 60 * 60) #TODO
     dt = FT(0.25)
     #CFL = FT(1.75)
     filter_freq = 1
-    output_freq = 1200
-    interval = "1200steps"
+    output_freq = 80#1200
+    interval = "80steps" #"1200steps"
 
     # periodicity and boundary numbers
     periodicity_x = false
@@ -981,7 +982,8 @@ function main()
     # call solve! function for time-integrator
     result = ClimateMachine.invoke!(
         solver_config;
-        user_callbacks = (cb_tmar_filter, cb_boyd_filter, cb_vtk),
+        diagnostics_config = dgn_config,
+        user_callbacks = (cb_tmar_filter, cb_boyd_filter),
         check_euclidean_distance = true,
     )
 
