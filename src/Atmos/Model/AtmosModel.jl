@@ -972,18 +972,8 @@ function numerical_flux_first_order!(
     h̃ = RoeAverage(ρ⁻, ρ⁺, h⁻, h⁺)
     qt = RoeAverage(ρ⁻, ρ⁺, qt⁻, qt⁺)
     ρ = sqrt(ρ⁻ * ρ⁺)
-    e_int⁻ = internal_energy(
-        ρ⁻,
-        ρe⁻,
-        ρu⁻,
-        gravitational_potential(balance_law, state_auxiliary⁻),
-    )
-    e_int⁺ = internal_energy(
-        ρ⁺,
-        ρe⁺,
-        ρu⁺,
-        gravitational_potential(balance_law, state_auxiliary⁺),
-    )
+    e_int⁻ = internal_energy(ts⁻)
+    e_int⁺ = internal_energy(ts⁺)
     e_int = RoeAverage(ρ⁻, ρ⁺, e_int⁻, e_int⁺)
     ts = PhaseEquil(
         param_set,

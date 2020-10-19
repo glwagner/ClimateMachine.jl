@@ -511,7 +511,6 @@ function bomex_model(
         problem = problem,
         turbulence = SmagorinskyLilly{FT}(C_smag),
         moisture = moisture,
-        ref_state = NoReferenceState(),
         source = source,
         turbconv = turbconv,
     )
