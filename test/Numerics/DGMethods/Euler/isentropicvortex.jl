@@ -25,7 +25,7 @@ const param_set = EarthParameterSet()
 using MPI, Logging, StaticArrays, LinearAlgebra, Printf, Dates, Test
 
 if !@isdefined integration_testing
-    const integration_testing = parse(
+    const integration_testing = =parse(
         Bool,
         lowercase(get(ENV, "JULIA_CLIMA_INTEGRATION_TESTING", "false")),
     )
@@ -34,7 +34,7 @@ end
 const output_vtk = false
 
 function main()
-    ClimateMachine.init()
+    ClimateMachine.init(parse_clargs = true)
     ArrayType = ClimateMachine.array_type()
 
     mpicomm = MPI.COMM_WORLD

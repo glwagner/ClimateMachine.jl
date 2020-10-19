@@ -12,6 +12,89 @@ struct Impenetrable{D <: MomentumDragBC} <: MomentumBC
     drag::D
 end
 
+struct OutFlow <: MomentumBC end
+
+function atmos_momentum_boundary_state!(
+    nf::NumericalFluxFirstOrder,
+    bc_momentum::OutFlow,
+    atmos,
+    state⁺,
+    aux⁺,
+    n,
+    state⁻,
+    aux⁻,
+    bctype,
+    t,
+    args...,
+)
+    state⁺.ρu = state⁻.ρu
+end
+function atmos_momentum_boundary_state!(
+    nf::NumericalFluxGradient,
+    bc_momentum::OutFlow,
+    atmos,
+    state⁺,
+    aux⁺,
+    n,
+    state⁻,
+    aux⁻,
+    bctype,
+    t,
+    args...,
+)
+    state⁺.ρu = state⁻.ρu
+end
+function atmos_momentum_normal_boundary_flux_second_order!(
+    nf,
+    bc_momentum::OutFlow,
+    atmos,
+    args...,
+) end
+
+struct Sod <: MomentumBC
+    dens::Float64
+end
+
+function atmos_momentum_boundary_state!(
+    nf::NumericalFluxFirstOrder,
+    bc_momentum::Sod,
+    atmos,
+    state⁺,
+    aux⁺,
+    n,
+    state⁻,
+    aux⁻,
+    bctype,
+    t,
+    args...,
+)
+    state⁺.ρ = bc_momentum.dens
+    state⁺.ρu -= 2 * dot(state⁻.ρu, n) .* SVector(n)
+end
+function atmos_momentum_boundary_state!(
+    nf::NumericalFluxGradient,
+    bc_momentum::Sod,
+    atmos,
+    state⁺,
+    aux⁺,
+    n,
+    state⁻,
+    aux⁻,
+    bctype,
+    t,
+    args...,
+)
+    state⁺.ρ = bc_momentum.dens
+    state⁺.ρu -= dot(state⁻.ρu, n) .* SVector(n)
+end
+function atmos_momentum_normal_boundary_flux_second_order!(
+    nf,
+    bc_momentum::Sod,
+    atmos,
+    args...,
+) end
+
+
 """
     FreeSlip() :: MomentumDragBC
 

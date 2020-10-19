@@ -10,7 +10,8 @@ export NumericalFluxGradient,
     CentralNumericalFluxFirstOrder,
     CentralNumericalFluxSecondOrder,
     CentralNumericalFluxDivergence,
-    CentralNumericalFluxHigherOrder
+    CentralNumericalFluxHigherOrder,
+    LMARNumericalFlux
 
 
 using StaticArrays, LinearAlgebra
@@ -320,6 +321,38 @@ A numerical flux based on the approximate Riemann solver of Roe
 Requires a custom implementation for the balance law.
 """
 struct RoeNumericalFlux <: NumericalFluxFirstOrder end
+function numerical_boundary_flux_first_order!(
+    numerical_flux::RoeNumericalFlux,
+    balance_law::BalanceLaw,
+    fluxᵀn::Vars{S},
+    normal_vector::SVector,
+    state_prognostic⁻::Vars{S},
+    state_auxiliary⁻::Vars{A},
+    state_prognostic⁺::Vars{S},
+    state_auxiliary⁺::Vars{A},
+    bctype,
+    t,
+    direction,
+    state1⁻::Vars{S},
+    aux1⁻::Vars{A},
+) where {S, A} 
+
+    numerical_boundary_flux_first_order!(
+        CentralNumericalFluxFirstOrder(),
+        balance_law,
+        fluxᵀn,
+        normal_vector,
+        state_prognostic⁻,
+        state_auxiliary⁻,
+        state_prognostic⁺,
+        state_auxiliary⁺,
+        bctype,
+        t,
+        direction,
+        state1⁻,
+        aux1⁻,
+        )
+end
 
 """
     HLLCNumericalFlux() <: NumericalFluxFirstOrder
@@ -345,6 +378,42 @@ Requires a custom implementation for the balance law.
     }
 """
 struct HLLCNumericalFlux <: NumericalFluxFirstOrder end
+
+struct LMARNumericalFlux <: NumericalFluxFirstOrder end
+
+function numerical_boundary_flux_first_order!(
+    numerical_flux::LMARNumericalFlux,
+    balance_law::BalanceLaw,
+    fluxᵀn::Vars{S},
+    normal_vector::SVector,
+    state_prognostic⁻::Vars{S},
+    state_auxiliary⁻::Vars{A},
+    state_prognostic⁺::Vars{S},
+    state_auxiliary⁺::Vars{A},
+    bctype,
+    t,
+    direction,
+    state1⁻::Vars{S},
+    aux1⁻::Vars{A},
+) where {S, A} 
+
+    numerical_boundary_flux_first_order!(
+        CentralNumericalFluxFirstOrder(),
+        balance_law,
+        fluxᵀn,
+        normal_vector,
+        state_prognostic⁻,
+        state_auxiliary⁻,
+        state_prognostic⁺,
+        state_auxiliary⁺,
+        bctype,
+        t,
+        direction,
+        state1⁻,
+        aux1⁻,
+        )
+end
+
 
 """
     NumericalFluxSecondOrder

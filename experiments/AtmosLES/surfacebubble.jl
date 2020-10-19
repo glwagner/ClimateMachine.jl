@@ -121,6 +121,7 @@ function config_surfacebubble(FT, N, resolution, xmax, ymax, zmax)
         init_surfacebubble!,
         solver_type = ode_solver,
         model = model,
+        numerical_flux_first_order = RoeNumericalFlux(),
     )
 
     return config

@@ -4,6 +4,8 @@ export InitStateBC
 
 export AtmosBC,
     Impenetrable,
+    OutFlow,
+    Sod,
     FreeSlip,
     NoSlip,
     DragLaw,
