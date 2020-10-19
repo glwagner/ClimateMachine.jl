@@ -60,7 +60,7 @@ function vars_state(::Updraft, ::Auxiliary, FT)
 end
 
 function vars_state(::Environment, ::Auxiliary, FT)
-    @vars(T::FT, cld_frac::FT, buoyancy::FT)
+    @vars(T::FT, cld_frac::FT, buoyancy::FT, ρaθ_liq::FT)
 end
 
 function vars_state(m::EDMF, st::Auxiliary, FT)
@@ -173,6 +173,8 @@ function init_aux_turbconv!(
 
     en_aux.cld_frac = FT(0)
     en_aux.buoyancy = FT(0)
+    en_aux.buoyancy = FT(0)
+    en_aux.ρaθ_liq = FT(300)
 
     @unroll_map(N_up) do i
         up_aux[i].buoyancy = FT(0)
@@ -212,7 +214,7 @@ function turbconv_nodal_update_auxiliary_state!(
 
     ρ_en = air_density(ts.en)
     en_aux.buoyancy = -_grav * (ρ_en - aux.ref_state.ρ) * ρ_inv
-
+    en_aux.ρaθ_liq = gm.ρ*env.a*liquid_ice_pottemp(ts.en)
     @unroll_map(N_up) do i
         ρ_i = air_density(ts.up[i])
         up_aux[i].buoyancy = -_grav * (ρ_i - aux.ref_state.ρ) * ρ_inv
@@ -261,6 +263,7 @@ function compute_gradient_argument!(
     up = state.turbconv.updraft
     en = state.turbconv.environment
 
+    ρ_inv = 1 / gm.ρ
     # Recover thermo states
     ts = recover_thermo_state_all(m, state, aux)
 
@@ -268,11 +271,14 @@ function compute_gradient_argument!(
     env = environment_vars(state, aux, N_up)
 
     @unroll_map(N_up) do i
-        up_tf[i].w = up[i].ρaw / max(up[i].ρa, gm.ρ*turbconv.subdomains.a_min)
+        if up[i].ρa*ρ_inv<turbconv.subdomains.a_min
+            up_tf[i].w = FT(0)
+        else
+            up_tf[i].w = up[i].ρaw / up[i].ρa
+        end
     end
     _grav::FT = grav(m.param_set)
 
-    ρ_inv = 1 / gm.ρ
     θ_liq_en = liquid_ice_pottemp(ts.en)
     q_tot_en = total_specific_humidity(ts.en)
 
@@ -465,7 +471,12 @@ function turbconv_source!(
             i,
         )
 
-        if ρa_up_i*ρ_inv>a_min
+        if ρa_up_i*ρ_inv<a_min
+            up_src[i].ρa      = FT(0) #*(up[i].ρa*a_up_i_inv - a_min) * a_min * a_min
+            up_src[i].ρaw     = FT(0) #*(up[i].ρaw*a_up_i_inv - gm.ρu[3]) * a_min * a_min
+            up_src[i].ρaθ_liq = FT(0) #*(up[i].ρaθ_liq*a_up_i_inv - gm.ρ*θ_liq) * a_min * a_min
+            up_src[i].ρaq_tot = FT(0) #*(up[i].ρaq_tot*a_up_i_inv - gm.moisture.ρq_tot) * a_min * a_min
+        else
             # entrainment and detrainment
             up_src[i].ρa += (E_dyn[i] - Δ_dyn[i])
             up_src[i].ρaw +=
@@ -482,13 +493,6 @@ function turbconv_source!(
             # add buoyancy and perturbation pressure in subdomain w equation
             up_src[i].ρaw += up[i].ρa * (up_aux[i].buoyancy - dpdz)
             # microphysics sources should be applied here
-        else
-            # if up[i].ρaw<FT(0)
-            up_src[i].ρa      -= FT(0)*(up[i].ρa*a_up_i_inv - a_min) * a_min * a_min
-            up_src[i].ρaw     -= FT(0)*(up[i].ρaw*a_up_i_inv - gm.ρu[3]) * a_min * a_min
-            up_src[i].ρaθ_liq -= FT(0)*(up[i].ρaθ_liq*a_up_i_inv - gm.ρ*θ_liq) * a_min * a_min
-            up_src[i].ρaq_tot -= FT(0)*(up[i].ρaq_tot*a_up_i_inv - gm.moisture.ρq_tot) * a_min * a_min
-            # end
         end
         if isnan(up_src[i].ρa*up_src[i].ρaw*up_src[i].ρaθ_liq*up_src[i].ρaq_tot)
             println("up_src[i].ρa = NaN")
@@ -609,18 +613,18 @@ function flux_first_order!(
     a_max = turbconv.subdomains.a_max
     # in future GCM implementations we need to think about grid mean advection
 
-    ρa_up = vuntuple(N_up) do i
-        gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
-    end
+    # ρa_up = vuntuple(N_up) do i
+    #     gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
+    # end
 
     @unroll_map(N_up) do i
-        ρa_i = ρa_up[i]
+        # ρa_i = ρa_up[i]
         up_flx[i].ρa = up[i].ρaw * ẑ
-        if ρa_i==FT(0)
-            println("zero area")
+        if up[i].ρa==FT(0)
+            println("zero area flux first order")
         end
-        w_up_i = up[i].ρaw / ρa_i
-        up_flx[i].ρaw = up[i].ρaw * w_up_i * ẑ
+        w_up_i = up[i].ρaw / max(up[i].ρa, a_min*gm.ρ)
+        up_flx[i].ρaw     = w_up_i * up[i].ρaw * ẑ
         up_flx[i].ρaθ_liq = w_up_i * up[i].ρaθ_liq * ẑ
         up_flx[i].ρaq_tot = w_up_i * up[i].ρaq_tot * ẑ
     end

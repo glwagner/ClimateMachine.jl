@@ -43,15 +43,15 @@ function perturbation_pressure(
     N_up = n_updrafts(m.turbconv)
     w_up_i = up[i].ρaw / up[i].ρa
 
-    if up[i].ρa/gm.ρ>m.turbconv.subdomains.a_min
+    if up[i].ρa/gm.ρ<FT(0)#m.turbconv.subdomains.a_min
+        dpdz = FT(0)
+    else
         nh_press_buoy = press.α_b * up_aux[i].buoyancy
         nh_pressure_adv = -press.α_a * w_up_i * up_dif[i].∇w[3]
         nh_pressure_drag =
             press.α_d * (w_up_i - env.w) * abs(w_up_i - env.w) / press.H_up
 
         dpdz = nh_press_buoy + nh_pressure_adv + nh_pressure_drag
-    else
-        dpdz = FT(0)
     end
     return dpdz
 end;

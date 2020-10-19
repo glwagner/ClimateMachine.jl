@@ -132,20 +132,20 @@ function new_thermo_state_up(
         ρa_up = up[i].ρa
         ρaθ_liq_up = up[i].ρaθ_liq
         ρaq_tot_up = up[i].ρaq_tot
-        if ρa_up/state.ρ>m.turbconv.subdomains.a_min
-            θ_liq_up = ρaθ_liq_up / ρa_up
-            q_tot_up = ρaq_tot_up / ρa_up
-        else
+        if ρa_up/state.ρ < m.turbconv.subdomains.a_min
             θ_liq_up = liquid_ice_pottemp(ts)
             q_tot_up = state.moisture.ρq_tot/state.ρ
             # @show ρa_up ,θ_liq_up ,q_tot_up
+        else
+            θ_liq_up = ρaθ_liq_up / ρa_up
+            q_tot_up = ρaq_tot_up / ρa_up
         end
+        # @show ρa_up/state.ρ, ρaq_tot_up, θ_liq_up, q_tot_up, p, z, up[i].ρaw
         if θ_liq_up<FT(290)
             θ_liq_gm = liquid_ice_pottemp(ts)
             a=ρa_up/state.ρ
             θ_liq_en = (θ_liq_gm-a*θ_liq_up)/(FT(1)-a)
             a_min = m.turbconv.subdomains.a_min
-            @show a ,a_min, θ_liq_up ,θ_liq_en, θ_liq_gm, q_tot_up, p, z, up[i].ρaw
         end
 
         LiquidIcePotTempSHumEquil_given_pressure(
@@ -153,8 +153,6 @@ function new_thermo_state_up(
             θ_liq_up,
             p,
             q_tot_up,
-            30,
-            FT(1e-1),
         )
     end
     return ts_up
@@ -187,8 +185,11 @@ function new_thermo_state_en(
         error("Environment θ_liq_en out-of-bounds in new_thermo_state_en")
     end
     if !(0 <= q_tot_en <= 1)
+        z = altitude(m, aux)
         @print("q_tot_en = ", q_tot_en, "\n")
         @print("a_en = ", a_en, "\n")
+        @print("q_tot = ", q_tot, "\n")
+        @print("z = ", z, "\n")
         error("Environment q_tot_en out-of-bounds in new_thermo_state_en")
     end
     ts_en = LiquidIcePotTempSHumEquil_given_pressure(
@@ -230,18 +231,18 @@ function recover_thermo_state_up_i(
 
     p   = air_pressure(ts)
     ρ_inv = FT(1)/ state.ρ
-    if up[i_up].ρa/state.ρ>m.turbconv.subdomains.a_min
+    if up[i_up].ρa/state.ρ<m.turbconv.subdomains.a_min
+        q_tot_up_i = state.moisture.ρq_tot *ρ_inv
+        e_int_up_i = internal_energy(ts)
+        T_up_i = air_temperature(ts)
+        ρ_up_i = state.ρ
+    else
         T_up_i     = aux.turbconv.updraft[i_up].T
         q_tot_up_i = up[i_up].ρaq_tot / up[i_up].ρa
         ρ_up_i = air_density(param_set, T_up_i, p, PhasePartition(q_tot_up_i))
         q_up_i =
             PhasePartition_equil(param_set, T_up_i, ρ_up_i, q_tot_up_i, PhaseEquil)
         e_int_up_i = internal_energy(param_set, T_up_i, q_up_i)
-    else
-        q_tot_up_i = state.moisture.ρq_tot *ρ_inv
-        e_int_up_i = internal_energy(ts)
-        T_up_i = air_temperature(ts)
-        ρ_up_i = state.ρ
     end
     return PhaseEquil{FT, typeof(param_set)}(
         param_set,
