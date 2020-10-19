@@ -922,7 +922,7 @@ function numerical_flux_first_order!(
     t,
     direction,
 ) where {S, A}
-
+    balance_law.moisture isa EquilMoist || error("Must use a EquilMoist model for RoeNumericalFluxMoist")
     numerical_flux_first_order!(
         CentralNumericalFluxFirstOrder(),
         balance_law,
