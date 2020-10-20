@@ -293,7 +293,6 @@ K∇h_z_plot = plot(
     all_data[1]["K∇h_vert"],
     iz,
     label = "0.75 days",
-    ytickfontcolor = "white",
     xlabel = "K∇h_z (m/s)",
 )
 plot!(all_data[2]["K∇h_vert"], iz, label = "1.5 days")
@@ -315,7 +314,6 @@ plot!(legend = :bottomright)
     all_data[1]["κ∇T_vert"],
     iz,
     label = "0.75 days",
-    ytickfontcolor = "white",
     xlabel = "κ∇T_z (W/m^2)",
 )
 plot!(all_data[2]["κ∇T_vert"], iz, label = "1.5 days")
