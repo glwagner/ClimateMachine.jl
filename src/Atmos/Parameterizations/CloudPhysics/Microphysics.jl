@@ -76,7 +76,7 @@ function n0_sno(snow_param_set::ASPS, q_sno::FT, ρ::FT) where {FT <: Real}
     _ν_sno::FT = ν_sno(snow_param_set)
     _μ_sno::FT = μ_sno(snow_param_set)
 
-    return _μ_sno * (ρ * q_sno)^_ν_sno
+    return _μ_sno * (ρ * max(0, q_sno))^_ν_sno
 end
 
 """
@@ -685,7 +685,7 @@ function evaporation_sublimation(
                 gamma((_ve + _Δv + FT(5)) / FT(2))
             )
     end
-    return evap_subl_rate
+    return max(0, evap_subl_rate)
 end
 function evaporation_sublimation(
     param_set::APS,
