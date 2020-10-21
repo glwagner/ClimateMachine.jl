@@ -101,7 +101,8 @@ function main(::Type{FT}) where {FT}
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(1*3600)
+    # timeend = FT(3*3600)
+    timeend = FT(400)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
@@ -182,26 +183,49 @@ function main(::Type{FT}) where {FT}
         i_ρ = varsindex(st, :ρ)
         ρ_gm = solver_config.Q[:,i_ρ,:]
         i_ρaθ_liq_en = varsindex(aux, :turbconv, :environment,:ρaθ_liq)
-        ρaθ_liq_en = solver_config.dg.state_auxiliary[:,i_ρaθ_liq_en,:]
-        ρaθ_liq_up = FT(0)
+        ρaθ_liq_en  = solver_config.dg.state_auxiliary[:,i_ρaθ_liq_en,:]
+        ρaθ_liq_ups = FT(0)
+        ρaq_tot_ups = FT(0)
+        ρa_ups      = FT(0)
+        ρaw_ups     = FT(0)
         for i in 1:n_updrafts(bl.turbconv)
-            i_ρaθ_liq_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaθ_liq)
-            ρaθ_liq_up = ρaθ_liq_up.+solver_config.Q[:,i_ρaθ_liq_up,:]
-        end
-        ρθ_liq_gm = ρaθ_liq_up .+ ρaθ_liq_en
-        i_ρq_tot_gm = varsindex(st, :moisture, :ρq_tot)
-        ρq_tot_gm = solver_config.Q[:,i_ρq_tot_gm,:]
-        for i in 1:n_updrafts(bl.turbconv)
-            i_ρa_up = varsindex(st, :turbconv, :updraft, Val(i), :ρa)
             i_ρaθ_liq_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaθ_liq)
             i_ρaq_tot_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaq_tot)
-            i_ρaw_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaw)
+            i_ρa_up      = varsindex(st, :turbconv, :updraft, Val(i), :ρa)
+            i_ρaw_up     = varsindex(st, :turbconv, :updraft, Val(i), :ρaw)
+            ρaθ_liq_ups  = ρaθ_liq_ups .+ solver_config.Q[:,i_ρaθ_liq_up,:]
+            ρaq_tot_ups  = ρaq_tot_ups .+ solver_config.Q[:,i_ρaq_tot_up,:]
+            ρa_ups       = ρa_ups .+ solver_config.Q[:,i_ρa_up,:]
+            ρaw_ups      = ρaw_ups .+ solver_config.Q[:,i_ρaw_up,:]
+        end
+        ρaw_en      = - ρaw_ups
+        i_ρq_tot_gm = varsindex(st, :moisture, :ρq_tot)
+        ρq_tot_gm   = solver_config.Q[:,i_ρq_tot_gm,:]
+        ρθ_liq_gm   = ρaθ_liq_ups .+ ρaθ_liq_en
+        ρaq_tot_en  = (ρq_tot_gm - ρaq_tot_ups) ./ (FT(1) .- ρa_ups)
+        θ_liq_en    = ρaθ_liq_en ./ (FT(1) .- ρa_ups)
+        q_tot_en    = ρaq_tot_en ./ (FT(1) .- ρa_ups)
+        w_en        = ρaw_en./ (FT(1) .- ρa_ups)
+        for i in 1:n_updrafts(bl.turbconv)
+            i_ρa_up      = varsindex(st, :turbconv, :updraft, Val(i), :ρa)
+            i_ρaθ_liq_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaθ_liq)
+            i_ρaq_tot_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaq_tot)
+            i_ρaw_up     = varsindex(st, :turbconv, :updraft, Val(i), :ρaw)
 
-            a_up_mask = solver_config.Q[:,i_ρa_up,:] .< ρ_gm*a_min
-            solver_config.Q[:,i_ρa_up,:]      .+= a_up_mask.*(ρ_gm.*a_min .- solver_config.Q[:,i_ρa_up,:])
-            solver_config.Q[:,i_ρaθ_liq_up,:] .+= a_up_mask.*(ρθ_liq_gm.*a_min .- solver_config.Q[:,i_ρaθ_liq_up,:])
-            solver_config.Q[:,i_ρaq_tot_up,:] .+= a_up_mask.*(ρq_tot_gm.*a_min .- solver_config.Q[:,i_ρaq_tot_up,:])
-            solver_config.Q[:,i_ρaw_up,:]     .+= a_up_mask.*(0 .- solver_config.Q[:,i_ρaw_up,:])
+            a_up_mask   = solver_config.Q[:,i_ρa_up,:] .< ρ_gm*a_min
+            ρ_area_change = max.(a_up_mask.*(ρ_gm*a_min .- solver_config.Q[:,i_ρa_up,:]),FT(0))
+            @show(ρ_area_change)
+            solver_config.Q[:,i_ρa_up,:]      .+= a_up_mask .*(ρ_gm .*a_min .- solver_config.Q[:,i_ρa_up,:])
+            solver_config.Q[:,i_ρaθ_liq_up,:] .+= a_up_mask .*θ_liq_en.*ρ_area_change
+            solver_config.Q[:,i_ρaq_tot_up,:] .+= a_up_mask .*q_tot_en.*ρ_area_change
+            solver_config.Q[:,i_ρaw_up,:]     .+= a_up_mask .*w_en.*ρ_area_change
+            @show(solver_config.Q[:,i_ρa_up,:])
+            @show(solver_config.Q[:,i_ρaθ_liq_up,:])
+            @show(solver_config.Q[:,i_ρaq_tot_up,:])
+            @show(solver_config.Q[:,i_ρaw_up,:])
+            # solver_config.Q[:,i_ρaθ_liq_up,:] .+= a_up_mask.*(ρθ_liq_gm.*a_min .- solver_config.Q[:,i_ρaθ_liq_up,:])
+            # solver_config.Q[:,i_ρaq_tot_up,:] .+= a_up_mask.*(ρq_tot_gm.*a_min .- solver_config.Q[:,i_ρaq_tot_up,:])
+            # solver_config.Q[:,i_ρaw_up,:]     .+= a_up_mask.*(0 .- solver_config.Q[:,i_ρaw_up,:])
         end
         nothing
     end

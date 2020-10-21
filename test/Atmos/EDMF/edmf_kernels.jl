@@ -227,7 +227,11 @@ function turbconv_nodal_update_auxiliary_state!(
 
     # remove the gm_b from all subdomains
     @unroll_map(N_up) do i
-        up_aux[i].buoyancy -= b_gm
+        if up[i].ρa * ρ_inv>turbconv.subdomains.a_min
+            up_aux[i].buoyancy -= b_gm
+        else
+            up_aux[i].buoyancy = FT(0)
+        end
     end
     en_aux.buoyancy -= b_gm
 
@@ -423,15 +427,15 @@ function turbconv_source!(
     a_min = turbconv.subdomains.a_min
     a_max = turbconv.subdomains.a_max
 
-    ρa_up = vuntuple(N_up) do i
-        gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
-    end
+    # ρa_up = vuntuple(N_up) do i
+    #     gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
+    # end
 
     @unroll_map(N_up) do i
 
-        ρa_up_i = ρa_up[i]
-        w_up_i = up[i].ρaw / ρa_up_i
-        ρa_up_i_inv = FT(1) / ρa_up_i
+        # ρa_up_i = ρa_up[i]
+        w_up_i = up[i].ρaw / up[i].ρa
+        ρa_up_i_inv = FT(1) / up[i].ρa
 
         # first moment sources - for now we compute these as aux variable
         dpdz = perturbation_pressure(
@@ -513,7 +517,7 @@ function turbconv_source!(
         )
 
         # pressure tke source from the i'th updraft
-        en_src.ρatke += ρa_up_i * (w_up_i - env.w) * dpdz
+        en_src.ρatke += up[i].ρa * (w_up_i - env.w) * dpdz
     end
     l_mix = mixing_length(
         m,
@@ -569,14 +573,14 @@ function flux_first_order!(
     a_max = turbconv.subdomains.a_max
     # in future GCM implementations we need to think about grid mean advection
 
-    ρa_up = vuntuple(N_up) do i
-        gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
-    end
+    # ρa_up = vuntuple(N_up) do i
+    #     gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
+    # end
 
     @unroll_map(N_up) do i
-        ρa_i = ρa_up[i]
+        # ρa_i = ρa_up[i]
         up_flx[i].ρa = up[i].ρaw * ẑ
-        w_up_i = up[i].ρaw / ρa_i
+        w_up_i = up[i].ρaw / up[i].ρa
         up_flx[i].ρaw = up[i].ρaw * w_up_i * ẑ
         up_flx[i].ρaθ_liq = w_up_i * up[i].ρaθ_liq * ẑ
         up_flx[i].ρaq_tot = w_up_i * up[i].ρaq_tot * ẑ
@@ -648,16 +652,16 @@ function flux_second_order!(
         )
     end
     e_tot_up = ntuple(i -> total_energy(e_kin[i], _grav * z, ts.up[i]), N_up)
-    ρa_up = vuntuple(N_up) do i
-        gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
-    end
+    # ρa_up = vuntuple(N_up) do i
+    #     gm.ρ * enforce_unit_bounds(up[i].ρa * ρ_inv, a_min, a_max)
+    # end
 
     massflux_e = sum(
         vuntuple(N_up) do i
             up[i].ρa *
             ρ_inv *
             (gm.ρe * ρ_inv - e_tot_up[i]) *
-            (gm.ρu[3] * ρ_inv - up[i].ρaw / ρa_up[i])
+            (gm.ρu[3] * ρ_inv - up[i].ρaw / up[i].ρa)
         end,
     )
 
@@ -666,7 +670,7 @@ function flux_second_order!(
             up[i].ρa *
             ρ_inv *
             (gm.moisture.ρq_tot * ρ_inv - up[i].ρaq_tot / up[i].ρa) *
-            (gm.ρu[3] * ρ_inv - up[i].ρaw / ρa_up[i])
+            (gm.ρu[3] * ρ_inv - up[i].ρaw / up[i].ρa)
         end,
     )
 
@@ -675,7 +679,7 @@ function flux_second_order!(
             up[i].ρa *
             ρ_inv *
             (gm.ρu[3] * ρ_inv - up[i].ρaw / up[i].ρa) *
-            (gm.ρu[3] * ρ_inv - up[i].ρaw / ρa_up[i])
+            (gm.ρu[3] * ρ_inv - up[i].ρaw / up[i].ρa)
         end,
     )
 
