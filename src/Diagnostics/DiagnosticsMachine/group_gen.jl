@@ -1,13 +1,13 @@
 # Generate `setup_$(name)(...)` which will create the `DiagnosticsGroup`
 # for $name when called.
 function generate_setup(name, config_type, on_grid, params_type)
-    setup_name = Symbol("setup_", name)
-    init_name = Symbol(name, "_init")
-    collect_name = Symbol(name, "_collect")
-    fini_name = Symbol(name, "_fini")
+    setupfun = Symbol("setup_", name)
+    initfun = Symbol(name, "_init")
+    collectfun = Symbol(name, "_collect")
+    finifun = Symbol(name, "_fini")
     quote
-        function $(setup_name)(
-            ::$config_type,
+        function $setupfun(
+            ::Type{$config_type},
             params::$params_type,
             interval::String,
             out_prefix::String,
@@ -19,14 +19,14 @@ function generate_setup(name, config_type, on_grid, params_type)
         }
             return DiagnosticsGroup(
                 $(name),
-                Diagnostics.$(init_name),
-                Diagnostics.$(collect_name),
-                Diagnostics.$(fini_name),
+                Diagnostics.$(initfun),
+                Diagnostics.$(collectfun),
+                Diagnostics.$(finifun),
                 interval,
                 out_prefix,
                 writer,
                 interpol,
-                $(on_grid ∈ GridDG),
+                $(on_grid == GridDG),
                 params,
             )
         end
@@ -38,7 +38,7 @@ function generate_init_dims(name, config_type, on_grid, dvars)
     # Set up an error for when no InterpolationTopology is specified but the
     # group is on an interpolated grid.
     err_ex = quote end
-    if on_grid ∈ GridInterpolated
+    if on_grid == GridInterpolated
         err_ex = quote
             throw(
                 ArgumentError(
@@ -53,7 +53,7 @@ function generate_init_dims(name, config_type, on_grid, dvars)
     # For horizontal averages, we add a `z` dimension. For pointwise
     # diagnostics, we add `nodes` and `elements`.
     add_dim_ex = quote end
-    if on_grid ∈ GridDG
+    if on_grid == GridDG
         add_ne_dims_ex = quote end
         if any(dv -> dv isa PointwiseDiagnostic, dvars)
             add_ne_dims_ex = quote
@@ -75,11 +75,11 @@ function generate_init_dims(name, config_type, on_grid, dvars)
     end
 
     quote
-        dims = dimensions($(esc(interpol)))
+        dims = dimensions(interpol)
         if isempty(dims)
             $(err_ex)
             $(add_dim_ex)
-        elseif $(esc(interpol)) isa InterpolationCubedSphere
+        elseif interpol isa InterpolationCubedSphere
             # Adjust `level` on the sphere.
             level_val = dims["level"]
             dims["level"] = (
@@ -99,7 +99,7 @@ function generate_init_vars(name, config_type, on_grid, dvars, dims)
         elems = (
             elems...,
             dv_name(config_type, dvar) => (
-                :(dv_dims($dvar, dims)),
+                :(dv_dims($dvar, dims)), # TODO: dims?
                 FT,
                 dv_attrib(config_type, dvar),
             )
@@ -152,7 +152,7 @@ end
 # Generate `Diagnostics.$(name)_collect(...)` which when called,
 # performs a collection of all the diagnostic variables in the group
 # and writes them out.
-function generate_collect(name, dvars)
+function generate_collect(name, config_type, on_grid, params_type, dvars)
     collect_name = Symbol(name, "_collect")
     quote
         function $(esc(collect_name))(dgngrp, curr_time)

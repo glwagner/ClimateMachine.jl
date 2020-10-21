@@ -112,21 +112,23 @@ macro diagnostics_group(
     params_type,
     dvars...,
 )
-    setup = generate_setup(name, config_type, on_grid, params_type)
-    dump(setup)
-    init = generate_init(name, config_type, on_grid, params_type, dvars)
-    dump(init)
-    collect = generate_collect(name, config_type, on_grid, params_type, dvars)
-    dump(collect)
-    fini = generate_fini(name, dvars)
-    dump(fini)
+    ex = generate_setup(name, config_type, on_grid, params_type)
+    setup = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    println(setup)
+    ex = generate_init(name, config_type, on_grid, params_type, dvars)
+    init = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    println(init)
+    #collect = generate_collect(name, config_type, on_grid, params_type, dvars)
+    #println(collect)
+    #fini = generate_fini(name, dvars)
+    #println(fini)
 
     return Expr(
         :block,
         esc(setup),
         esc(init),
-        esc(collect),
-        esc(fini),
+        #esc(collect),
+        #esc(fini),
     )
 end
 

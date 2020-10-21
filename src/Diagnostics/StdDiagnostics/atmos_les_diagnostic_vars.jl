@@ -17,46 +17,46 @@ end
 @horizontal_average(AtmosLESConfigType, "v", "m s^-1", "y-velocity", "")
 @horizontal_average(AtmosLESConfigType, "w", "m s^-1", "z-velocity", "")
 
-@horizontal_average(AtmosLESConfigType, "uu")
-@horizontal_average(AtmosLESConfigType, "vv")
-@horizontal_average(AtmosLESConfigType, "ww")
-@horizontal_average(AtmosLESConfigType, "www")
-@horizontal_average(AtmosLESConfigType, "wu")
-@horizontal_average(AtmosLESConfigType, "wv")
+@horizontal_average(AtmosLESConfigType, "u_u")
+@horizontal_average(AtmosLESConfigType, "v_v")
+@horizontal_average(AtmosLESConfigType, "w_w")
+@horizontal_average(AtmosLESConfigType, "w_w_w")
+@horizontal_average(AtmosLESConfigType, "w_u")
+@horizontal_average(AtmosLESConfigType, "w_v")
 
 @horizontal_average_impl(
     AtmosLESConfigType,
     "u",
     "v",
     "w",
-    "uu",
-    "vv",
-    "ww",
-    "www",
-    "wu",
-    "wv",
+    "u_u",
+    "v_v",
+    "w_w",
+    "w_w_w",
+    "w_u",
+    "w_v",
 ) do (atmos::AtmosModel, states::States, curr_time, intermediates)
     u = states.prognostic.ρu[1]
     v = states.prognostic.ρu[2]
     w = states.prognostic.ρu[3]
-    uu = u^2 / states.prognostic.ρ
-    vv = v^2 / states.prognostic.ρ
-    ww = w^2 / states.prognostic.ρ
-    www = w^3 / states.prognostic.ρ^2
-    wu = w * u / states.prognostic.ρ
-    wv = w * v / states.prognostic.ρ
+    u_u = u^2 / states.prognostic.ρ
+    v_v = v^2 / states.prognostic.ρ
+    w_w = w^2 / states.prognostic.ρ
+    w_w_w = w^3 / states.prognostic.ρ^2
+    w_u = w * u / states.prognostic.ρ
+    w_v = w * v / states.prognostic.ρ
 end
 
 @horizontal_average(AtmosLESConfigType, "avg_rho", "kg m^-3", "air density", "air_density")
 @horizontal_average(AtmosLESConfigType, "rho", "kg m^-3", "air density", "air_density")
 
-@horizontal_average(AtmosLESConfigType, "wrho")
+@horizontal_average(AtmosLESConfigType, "w_rho")
 
 @horizontal_average_impl(
     AtmosLESConfigType,
     "avg_rho",
     "rho",
-    "wrho",
+    "w_rho",
 ) do (
     atmos::AtmosModel,
     states::States,
@@ -77,9 +77,9 @@ end
 @horizontal_average(AtmosLESConfigType, "hi", "J kg^-1", "specific enthalpy based on internal energy", "atmosphere_enthalpy_content")
 @horizontal_average(AtmosLESConfigType, "w_ht_sgs", "kg kg^-1 m s^-1", "vertical sgs flux of total specific enthalpy", "")
 
-@horizontal_average(AtmosLESConfigType, "eiei")
-@horizontal_average(AtmosLESConfigType, "wthd")
-@horizontal_average(AtmosLESConfigType, "wei")
+@horizontal_average(AtmosLESConfigType, "ei_ei")
+@horizontal_average(AtmosLESConfigType, "w_thd")
+@horizontal_average(AtmosLESConfigType, "w_ei")
 
 @horizontal_average_impl(
     AtmosLESConfigType,
@@ -90,9 +90,9 @@ end
     "ht",
     "hi",
     "w_ht_sgs",
-    "eiei",
-    "wthd",
-    "wei",
+    "ei_ei",
+    "w_thd",
+    "w_ei",
 ) do (
     atmos::AtmosModel,
     states::States,
@@ -121,16 +121,16 @@ end
 @horizontal_average(AtmosLESConfigType, "thl", "K", "liquid-ice potential temperature", "")
 @horizontal_average(AtmosLESConfigType, "w_qt_sgs", "kg kg^-1 m s^-1", "vertical sgs flux of total specific humidity", "")
 
-@horizontal_average(AtmosLESConfigType, "qtqt")
-@horizontal_average(AtmosLESConfigType, "thlthl")
-@horizontal_average(AtmosLESConfigType, "wqt")
-@horizontal_average(AtmosLESConfigType, "wql")
-@horizontal_average(AtmosLESConfigType, "wqi")
-@horizontal_average(AtmosLESConfigType, "wqv")
-@horizontal_average(AtmosLESConfigType, "wthv")
-@horizontal_average(AtmosLESConfigType, "wthl")
-@horizontal_average(AtmosLESConfigType, "qtthl")
-@horizontal_average(AtmosLESConfigType, "qtei")
+@horizontal_average(AtmosLESConfigType, "qt_qt")
+@horizontal_average(AtmosLESConfigType, "thl_thl")
+@horizontal_average(AtmosLESConfigType, "w_qt")
+@horizontal_average(AtmosLESConfigType, "w_ql")
+@horizontal_average(AtmosLESConfigType, "w_qi")
+@horizontal_average(AtmosLESConfigType, "w_qv")
+@horizontal_average(AtmosLESConfigType, "w_thv")
+@horizontal_average(AtmosLESConfigType, "w_thl")
+@horizontal_average(AtmosLESConfigType, "qt_thl")
+@horizontal_average(AtmosLESConfigType, "qt_ei")
 
 @horizontal_average_impl(
     AtmosLESConfigType,
@@ -141,16 +141,16 @@ end
     "thv",
     "thl",
     "w_qt_sgs",
-    "qtqt",
-    "thlthl",
-    "wqt",
-    "wql",
-    "wqi",
-    "wqv",
-    "wthv",
-    "wthl",
-    "qtthl",
-    "qtei",
+    "qt_qt",
+    "thl_thl",
+    "w_qt",
+    "w_ql",
+    "w_qi",
+    "w_qv",
+    "w_thv",
+    "w_thl",
+    "qt_thl",
+    "qt_ei",
 ) do (
     m::Union{EquilMoist, NonEquilMoist},
     atmos::AtmosModel,
@@ -166,17 +166,17 @@ end
     thl = intermediates.moisture.θ_liq_ice * states.prognostic.ρ
     d_q_tot = (-intermediates.D_t) .* states.gradient_flux.moisture.∇q_tot
     w_qt_sgs = d_q_tot[end] * states.prognostic.ρ
-    qtqt = qt * (states.prognostic.moisture.ρq_tot / states.prognostic.ρ)
-    thlthl = thl * intermediates.moisture.θ_liq_ice
+    qt_qt = qt * (states.prognostic.moisture.ρq_tot / states.prognostic.ρ)
+    thl_thl = thl * intermediates.moisture.θ_liq_ice
     w = states.prognostic.ρu[3] / states.prognostic.ρ
-    wqt = states.prognostic.ρu[3] * qt / states.prognostic.ρ
-    wql = states.prognostic.ρu[3] * intermediates.moisture.q_liq
-    wqi = states.prognostic.ρu[3] * intermediates.moisture.q_ice
-    wqv = states.prognostic.ρu[3] * intermediates.moisture.q_vap
-    wthv = states.prognostic.ρu[3] * intermediates.moisture.θ_vir
-    wthl = states.prognostic.ρu[3] * intermediates.moisture.θ_liq_ice
-    qtthl = qt * intermediates.moisture.θ_liq_ice
-    qtei = qt * intermediates.e_int
+    w_qt = states.prognostic.ρu[3] * qt / states.prognostic.ρ
+    w_ql = states.prognostic.ρu[3] * intermediates.moisture.q_liq
+    w_qi = states.prognostic.ρu[3] * intermediates.moisture.q_ice
+    w_qv = states.prognostic.ρu[3] * intermediates.moisture.q_vap
+    w_thv = states.prognostic.ρu[3] * intermediates.moisture.θ_vir
+    w_thl = states.prognostic.ρu[3] * intermediates.moisture.θ_liq_ice
+    qt_thl = qt * intermediates.moisture.θ_liq_ice
+    qt_ei = qt * intermediates.e_int
 end
 
 #= TODO
