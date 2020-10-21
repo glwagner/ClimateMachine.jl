@@ -942,6 +942,55 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
     return comp_stream
 end
 
+function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
+    FT = eltype(state_prognostic)
+    Qhypervisc_grad, _ = dg.states_higher_order
+
+    info = basic_launch_info(dg)
+    workgroup = (info.Nq, info.Nq)
+    ndrange = (info.Nq * info.nrealelem, info.Nq)
+
+    comp_stream = volume_gradients!(info.device, workgroup)(
+        HorizontalDirection(),
+        dg.balance_law,
+        Val(info.dim),
+        Val(info.N),
+        dg.diffusion_direction,
+        state_prognostic.data,
+        dg.state_gradient_flux.data,
+        Qhypervisc_grad.data,
+        dg.state_auxiliary.data,
+        dg.grid.vgeo,
+        t,
+        dg.grid.D,
+        Val(hyperdiff_indexmap(dg.balance_law, FT)),
+        dg.grid.topology.realelems,
+        ndrange = ndrange,
+        dependencies = dependencies,
+    )
+
+    vert_workgroup = ...
+    comp_stream = volume_gradients!(info.device, vert_workgroup)(
+        VerticalDirection(),
+        dg.balance_law,
+        Val(info.dim),
+        Val(info.N),
+        dg.diffusion_direction,
+        state_prognostic.data,
+        dg.state_gradient_flux.data,
+        Qhypervisc_grad.data,
+        dg.state_auxiliary.data,
+        dg.grid.vgeo,
+        t,
+        dg.grid.D,
+        Val(hyperdiff_indexmap(dg.balance_law, FT)),
+        dg.grid.topology.realelems,
+        ndrange = ndrange,
+        dependencies = dependencies,
+    )
+    return comp_stream
+end
+
 function launch_interface_gradients!(
     dg,
     state_prognostic,
