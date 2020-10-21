@@ -2,10 +2,30 @@ using Test
 
 using ClimateMachine.SurfaceFluxes
 const SF = SurfaceFluxes
+using StaticArrays
 
 using CLIMAParameters: AbstractEarthParameterSet
 struct EarthParameterSet <: AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
+
+@testset "SurfaceFluxes - Helper funcs" begin
+    FT = Float32
+    x = (FT(1), FT(2))
+    t1 = collect(FT(1):FT(2))
+    t2 = SVector(FT(1), FT(2))
+    t3 = (FT(1), FT(2))
+    t4 = MArray{Tuple{2}, FT}(undef)
+    t4 .= x
+
+    @test SF.similar_instance(x, t1) isa Array
+    @test all(x .≈ t1)
+    @test SF.similar_instance(x, t2) isa SVector
+    @test all(x .≈ t2)
+    @test SF.similar_instance(x, t3) isa Tuple
+    @test all(x .≈ t3)
+    @test SF.similar_instance(x, t4) isa MArray
+    @test all(x .≈ t4)
+end
 
 @testset "SurfaceFluxes - FMS Profiles" begin
     FT = Float32
