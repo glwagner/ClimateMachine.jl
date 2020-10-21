@@ -202,9 +202,9 @@ end
 function main()
     # Driver configuration parameters
     FT = Float64                             # floating type precision
-    poly_order = 3                           # discontinuous Galerkin polynomial order
-    n_horz = 12                              # horizontal element number
-    n_vert = 6                               # vertical element number
+    poly_order = 4                           # discontinuous Galerkin polynomial order
+    n_horz = 10                              # horizontal element number
+    n_vert = 5                               # vertical element number
     n_days::FT = 1
     timestart::FT = 0                        # start time (s)
     timeend::FT = n_days * day(param_set)    # end time (s)
@@ -237,9 +237,7 @@ function main()
     # Set up diagnostics
     dgn_config = config_diagnostics(FT, driver_config)
 
-    # Set up user-defined callbacks
-    filterorder = 20
-    filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
+    filter = CutoffFilter(solver_config.dg.grid, 2)
     cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
             solver_config.Q,
@@ -247,6 +245,7 @@ function main()
             solver_config.dg.grid,
             filter,
             state_auxiliary = solver_config.dg.state_auxiliary,
+            direction = VerticalDirection(),
         )
         nothing
     end

@@ -173,8 +173,20 @@ function main()
     dgn_config = config_diagnostics(FT, driver_config)
 
     # Set up user-defined callbacks
-    filterorder = 64
-    filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
+    # filterorder = 64
+    # filter = ExponentialFilter(solver_config.dg.grid, 0, filterorder)
+    # cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
+    #     Filters.apply!(
+    #         solver_config.Q,
+    #         AtmosFilterPerturbations(driver_config.bl),
+    #         solver_config.dg.grid,
+    #         filter,
+    #         state_auxiliary = solver_config.dg.state_auxiliary,
+    #     )
+    #     nothing
+    # end
+
+    filter = CutoffFilter(solver_config.dg.grid, 2)
     cbfilter = GenericCallbacks.EveryXSimulationSteps(1) do
         Filters.apply!(
             solver_config.Q,
@@ -182,6 +194,7 @@ function main()
             solver_config.dg.grid,
             filter,
             state_auxiliary = solver_config.dg.state_auxiliary,
+            direction = VerticalDirection(),
         )
         nothing
     end
