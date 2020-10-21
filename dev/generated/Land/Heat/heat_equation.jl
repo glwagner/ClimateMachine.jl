@@ -85,7 +85,7 @@ function init_state_prognostic!(
     m::HeatModel,
     state::Vars,
     aux::Vars,
-    coords,
+    localgeo,
     t::Real,
 )
     state.ρcT = m.ρc * aux.T
