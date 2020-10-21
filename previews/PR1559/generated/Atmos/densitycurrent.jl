@@ -31,7 +31,9 @@ using CLIMAParameters.Planet: R_d, cp_d, cv_d, MSLP, grav
 struct EarthParameterSet <: AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
-function init_densitycurrent!(problem, bl, state, aux, (x, y, z), t)
+function init_densitycurrent!(problem, bl, state, aux, localgeo, t)
+    (x, y, z) = localgeo.coord
+
     # Problem float-type
     FT = eltype(state)
 
