@@ -46,6 +46,17 @@ function dv_name end
 function dv_attrib end
 
 """
+    dv_args(::Type{CT}, ::Type{DVT}) where {
+        CT <: ClimateMachineConfigType,
+        DVT <: DiagnosticVar,
+    }
+
+Returns a tuple of the arguments required for the implementation of the
+diagnostic variables.
+"""
+function dv_args end
+
+"""
     dv_dims(::DVT, out_dims::ODT) where {
         DVT <: DiagnosticVar,
         ODT <: Union{Nothing, Tuple},
@@ -97,6 +108,7 @@ function generate_dv_interface(
     end
     quote
         struct $dvtypname <: $dvtype end
+        DiagnosticsMachine.AllDiagnosticVars[$config_type][$name] = $dvtypname
         dv_name(::Type{$config_type}, ::Type{$dvtypname}) = $name
         $(attrib_ex)
     end
@@ -118,17 +130,21 @@ function generate_dv_function(
     @capture(impl, ((args__,),) -> (body_)) ||
         @capture(impl, (args_) -> (body_)) ||
             error("Bad implementation for $(esc(names[1]))")
-    fun_args = map(
-        a -> :($(a[1])::$(a[2])),
-        map(splitarg, args),
-    )
+    split_fun_args = map(splitarg, args)
+    fun_args = map(a -> :($(a[1])::$(a[2])), split_fun_args)
     quote
+        function dv_args(
+            ::Type{$config_type},
+            ::Union{$(dvtypname_args...)},
+        )
+            $split_fun_args
+        end
         function $dvfun(
             ::Type{$config_type},
             ::Union{$(dvtypname_args...)},
             $(fun_args...),
         )
-            $(unblock(body))
+            $body
         end
     end
 end
@@ -299,7 +315,7 @@ A horizontal reduction into a single vertical dimension.
 abstract type HorizontalAverage <: DiagnosticVar end
 dv_HorizontalAverage(
     ::Type{ClimateMachineConfigType},
-    ::Type{HorizontalAverage},
+    ::Union{Type{HorizontalAverage}},
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,
@@ -381,7 +397,7 @@ A reduction into a scalar value.
 abstract type ScalarDiagnostic <: DiagnosticVar end
 dv_ScalarDiagnostic(
     ::Type{ClimateMachineConfigType},
-    ::Type{ScalarDiagnostic},
+    ::Union{Type{ScalarDiagnostic}},
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,

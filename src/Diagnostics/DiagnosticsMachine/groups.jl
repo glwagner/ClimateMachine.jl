@@ -110,25 +110,29 @@ macro diagnostics_group(
     config_type,
     on_grid,
     params_type,
-    dvars...,
+    dvarnames...,
 )
-    ex = generate_setup(name, config_type, on_grid, params_type)
-    setup = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
-    println(setup)
-    ex = generate_init(name, config_type, on_grid, params_type, dvars)
-    init = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
-    println(init)
-    #collect = generate_collect(name, config_type, on_grid, params_type, dvars)
+    ex = generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
+    vars_funs = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    println(vars_funs)
+    ex = generate_setup_fun(name, config_type, on_grid, params_type)
+    setup_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    println(setup_fun)
+    ex = generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
+    init_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    println(init_fun)
+    #collect = generate_collect(name, config_type, on_grid, params_type, dvarnames)
     #println(collect)
-    #fini = generate_fini(name, dvars)
+    #fini = generate_fini(name, config_type, on_grid, params_type, dvarnames)
     #println(fini)
 
     return Expr(
         :block,
-        esc(setup),
-        esc(init),
-        #esc(collect),
-        #esc(fini),
+        vars_funs,
+        setup_fun,
+        init_fun,
+        #collect_fun,
+        #fini_fun,
     )
 end
 

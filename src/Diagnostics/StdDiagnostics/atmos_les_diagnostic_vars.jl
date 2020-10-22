@@ -85,6 +85,7 @@ end
     AtmosLESConfigType,
     "temp",
     "pres",
+    "thd",
     "et",
     "ei",
     "ht",
@@ -107,7 +108,7 @@ end
     ht = intermediates.h_tot * states.prognostic.ρ
     hi = intermediates.h_int * states.prognostic.ρ
     d_h_tot = -(intermediates.D_t) .* states.gradient_flux.∇h_tot
-    w_ht_sgs = d_h_tot[end] * state.prognostic.ρ
+    w_ht_sgs = d_h_tot[end] * states.prognostic.ρ
     eiei = ei * intermediates.e_int
     wthd = states.prognostic.ρu[3] * intermediates.θ_dry
     wei = states.prognostic.ρu[3] * intermediates.e_int
@@ -152,7 +153,7 @@ end
     "qt_thl",
     "qt_ei",
 ) do (
-    m::Union{EquilMoist, NonEquilMoist},
+    moisture::Union{EquilMoist, NonEquilMoist},
     atmos::AtmosModel,
     states,
     curr_time,

@@ -1,6 +1,37 @@
+function get_comps_used(config_type, dvarnames)
+    comps = Set()
+    for name in dvarnames
+        ct = getfield(ConfigTypes, config_type)
+        dvar = AllDiagnosticVars[ct][name]
+        push!(comps, first(dv_args(ct, dvar)))
+    end
+    println(comps)
+    return comps
+end
+
+# Generate the `VariableTemplates` defining functions for the specified
+# `dvarnames`.
+function generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
+    varsfun = Symbol("vars_", name)
+    vardecls = []
+    comps = get_comps_used(config_type, dvarnames)
+    compdecls = []
+    for name in dvarnames
+        push!(vardecls, :($(Symbol(name))::FT))
+    end
+    quote
+        function $varsfun(bl::BalanceLaw, FT)
+            @vars begin
+                $(vardecls...)
+                $(compdecls...)
+            end
+        end
+    end
+end
+
 # Generate `setup_$(name)(...)` which will create the `DiagnosticsGroup`
 # for $name when called.
-function generate_setup(name, config_type, on_grid, params_type)
+function generate_setup_fun(name, config_type, on_grid, params_type)
     setupfun = Symbol("setup_", name)
     initfun = Symbol(name, "_init")
     collectfun = Symbol(name, "_collect")
@@ -34,7 +65,7 @@ function generate_setup(name, config_type, on_grid, params_type)
 end
 
 # Generate the `dims` dictionary for `Writers.init_data`.
-function generate_init_dims(name, config_type, on_grid, dvars)
+function generate_init_dims(name, config_type, on_grid, dvarnames)
     # Set up an error for when no InterpolationTopology is specified but the
     # group is on an interpolated grid.
     err_ex = quote end
@@ -55,14 +86,14 @@ function generate_init_dims(name, config_type, on_grid, dvars)
     add_dim_ex = quote end
     if on_grid == GridDG
         add_ne_dims_ex = quote end
-        if any(dv -> dv isa PointwiseDiagnostic, dvars)
+        if any(dv -> dv isa PointwiseDiagnostic, dvarnames)
             add_ne_dims_ex = quote
                 $(esc(dims))["nodes"] = (collect(1:$(esc(npoints))), Dict())
                 $(esc(dims))["elements"] = (collect(1:$(esc(nrealelem))), Dict())
             end
         end
         add_z_dim_ex = quote end
-        if any(dv -> dv isa HorizontalAverage, dvars)
+        if any(dv -> dv isa HorizontalAverage, dvarnames)
             add_z_dim_ex = quote
                 $(esc(dims))["z"] = ($(esc(AtmosCollected.zvals)), Dict())
             end
@@ -92,10 +123,10 @@ function generate_init_dims(name, config_type, on_grid, dvars)
 end
 
 # Generate the `vars` dictionary for `Writers.init_data`.
-function generate_init_vars(name, config_type, on_grid, dvars, dims)
+function generate_init_vars(name, config_type, on_grid, dvarnames, dims)
     elems = ()
 
-    for dvar in dvars
+    for dvar in dvarnames
         elems = (
             elems...,
             dv_name(config_type, dvar) => (
@@ -113,7 +144,7 @@ end
 
 # Generate `Diagnostics.$(name)_init(...)` which will initialize the
 # `DiagnosticsGroup` when called.
-function generate_init(name, config_type, on_grid, params_type, dvars)
+function generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
     init_name = Symbol(name, "_init")
     quote
         function $(esc(init_name))(dgngrp, curr_time)
@@ -130,8 +161,8 @@ function generate_init(name, config_type, on_grid, params_type, dvars)
             end
 
             if mpirank == 0
-                dims = $(generate_init_dims(name, config_type, on_grid, dvars))
-                vars = $(generate_init_vars(name, config_type, on_grid, dvars))
+                dims = $(generate_init_dims(name, config_type, on_grid, dvarnames))
+                vars = $(generate_init_vars(name, config_type, on_grid, dvarnames))
 
                 # create the output file
                 dprefix = @sprintf(
@@ -152,7 +183,7 @@ end
 # Generate `Diagnostics.$(name)_collect(...)` which when called,
 # performs a collection of all the diagnostic variables in the group
 # and writes them out.
-function generate_collect(name, config_type, on_grid, params_type, dvars)
+function generate_collect_fun(name, config_type, on_grid, params_type, dvarnames)
     collect_name = Symbol(name, "_collect")
     quote
         function $(esc(collect_name))(dgngrp, curr_time)
@@ -165,7 +196,7 @@ function generate_collect(name, config_type, on_grid, params_type, dvars)
             interpol = dgngrp.interpol
 
             intermediates =
-                $(generate_intermediates(name, config_type, dvars))
+                $(generate_intermediates(name, config_type, dvarnames))
 
             $(generate_collect_vars(name, ))
             if mpirank == 0
@@ -181,7 +212,7 @@ end
 
 # Generate `Diagnostics.$(name)_fini(...)`, which does nothing
 # right now.
-function generate_fini(name, vars)
+function generate_fini_fun(name, vars)
     fini_name = Symbol(name, "_fini")
     quote
         function $(esc(fini_name))(dgngrp, curr_time) end

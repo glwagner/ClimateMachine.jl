@@ -11,6 +11,9 @@ to define specialized variables and groups.
 module DiagnosticsMachine
 
 export DiagnosticVar,
+    dv_name,
+    dv_attrib,
+    dv_args,
     IntermediateValue,
     @intermediate_value,
     @intermediate_values,
@@ -30,14 +33,12 @@ export DiagnosticVar,
 
 using CUDA
 using Dates
-using FileIO
-using JLD2
+using InteractiveUtils
 using KernelAbstractions
 using MacroTools
 using MPI
 using OrderedCollections
 using Printf
-using StaticArrays
 
 using ..Atmos
 using ..BalanceLaws
@@ -66,6 +67,26 @@ Base.@kwdef mutable struct Diagnostic_Settings
 end
 const Settings = Diagnostic_Settings()
 
+include("variables.jl")
+include("groups.jl")
+
+const AllDiagnosticVars =
+    OrderedDict{
+        Type{<:ClimateMachineConfigType},
+        OrderedDict{String, Type{<:DiagnosticVar}},
+    }()
+AllDiagnosticVars[ClimateMachineConfigType] =
+    OrderedDict{String, Type{<:DiagnosticVar}}()
+function add_all_dvar_dicts(T::DataType)
+    for t in subtypes(T)
+        AllDiagnosticVars[t] =
+            OrderedDict{String, Type{<:DiagnosticVar}}()
+        add_all_dvar_dicts(t)
+    end
+end
+add_all_dvar_dicts(ClimateMachineConfigType)
+#dvar = AllDiagnosticVars[getfield(ConfigTypes, config_type)][name]
+
 """
     init(mpicomm, param_set, dg, Q, starttime, output_dir)
 
@@ -87,8 +108,5 @@ function init(
     Settings.starttime = starttime
     Settings.output_dir = output_dir
 end
-
-include("variables.jl")
-include("groups.jl")
 
 end # module DiagnosticsMachine

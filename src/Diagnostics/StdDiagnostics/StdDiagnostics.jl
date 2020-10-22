@@ -7,6 +7,7 @@ be used directly by experiments.
 module StdDiagnostics
 
 using ..DiagnosticsMachine
+import ..DiagnosticsMachine: dv_name, dv_args
 
 export setup_atmos_default_diagnostics #=,
     setup_atmos_core_diagnostics,
