@@ -1023,6 +1023,7 @@ function launch_interface_divergence_of_gradients!(
     surface::Symbol,
     dependencies,
 )
+    @assert surface === :interior || surface === :exterior
     Qhypervisc_grad, Qhypervisc_div = dg.states_higher_order
 
     info = basic_launch_info(dg)
