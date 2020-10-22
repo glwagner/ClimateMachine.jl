@@ -846,6 +846,7 @@ end
     D,
     ::Val{hypervisc_indexmap},
     elems,
+    increment = false
 ) where {dim, polyorder, hypervisc_indexmap}
     @uniform begin
         N = polyorder
@@ -1002,8 +1003,13 @@ end
                 )
 
                 @unroll for s in 1:num_state_gradient_flux
+                    if increment
+                      state_gradient_flux[ijk, s, e] +=
+                        local_state_gradient_flux[s]
+                    else
                     state_gradient_flux[ijk, s, e] =
                         local_state_gradient_flux[s]
+                    end
                 end
             end
         end
@@ -1024,6 +1030,7 @@ end
     D,
     ::Val{hypervisc_indexmap},
     elems,
+    increment=false
 ) where {dim, polyorder, hypervisc_indexmap}
     @uniform begin
         N = polyorder
@@ -1179,8 +1186,13 @@ end
                 )
 
                 @unroll for s in 1:num_state_gradient_flux
+                    if increment
+                    state_gradient_flux[ijk, s, e] +=
+                        local_state_gradient_flux[s]
+                    else
                     state_gradient_flux[ijk, s, e] =
                         local_state_gradient_flux[s]
+                    end
                 end
             end
         end

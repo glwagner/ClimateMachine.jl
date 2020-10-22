@@ -926,7 +926,7 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
         dg.balance_law,
         Val(info.dim),
         Val(info.N),
-        dg.diffusion_direction,
+        HorizontalDirection(),
         state_prognostic.data,
         dg.state_gradient_flux.data,
         Qhypervisc_grad.data,
@@ -938,6 +938,25 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
         dg.grid.topology.realelems,
         ndrange = ndrange,
         dependencies = dependencies,
+    )
+    
+    comp_stream = volume_gradients!(info.device, workgroup)(
+        dg.balance_law,
+        Val(info.dim),
+        Val(info.N),
+        VerticalDirection(),
+        state_prognostic.data,
+        dg.state_gradient_flux.data,
+        Qhypervisc_grad.data,
+        dg.state_auxiliary.data,
+        dg.grid.vgeo,
+        t,
+        dg.grid.D,
+        Val(hyperdiff_indexmap(dg.balance_law, FT)),
+        dg.grid.topology.realelems,
+        true,
+        ndrange = ndrange,
+        dependencies = comp_stream,
     )
     return comp_stream
 end
@@ -968,7 +987,29 @@ function launch_interface_gradients!(
         dg.balance_law,
         Val(info.dim),
         Val(info.N),
-        dg.diffusion_direction,
+        HorizontalDirection(),
+        dg.numerical_flux_gradient,
+        state_prognostic.data,
+        dg.state_gradient_flux.data,
+        Qhypervisc_grad.data,
+        dg.state_auxiliary.data,
+        dg.grid.vgeo,
+        dg.grid.sgeo,
+        t,
+        dg.grid.vmap⁻,
+        dg.grid.vmap⁺,
+        dg.grid.elemtobndy,
+        Val(hyperdiff_indexmap(dg.balance_law, FT)),
+        elems;
+        ndrange = ndrange,
+        dependencies = dependencies,
+    )
+    
+    comp_stream = interface_gradients!(info.device, workgroup)(
+        dg.balance_law,
+        Val(info.dim),
+        Val(info.N),
+        VerticalDirection(),
         dg.numerical_flux_gradient,
         state_prognostic.data,
         dg.state_gradient_flux.data,
