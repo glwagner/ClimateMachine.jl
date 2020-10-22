@@ -101,8 +101,8 @@ function main(::Type{FT}) where {FT}
     t0 = FT(0)
 
     # Simulation time
-    timeend = FT(1*3600)
-    # timeend = FT(400)
+    timeend = FT(6*3600)
+    # timeend = FT(1000)
     CFLmax = FT(0.90)
 
     config_type = SingleStackConfigType
@@ -212,12 +212,26 @@ function main(::Type{FT}) where {FT}
             i_ρaq_tot_up = varsindex(st, :turbconv, :updraft, Val(i), :ρaq_tot)
             i_ρaw_up     = varsindex(st, :turbconv, :updraft, Val(i), :ρaw)
 
-            a_up_mask   = solver_config.Q[:,i_ρa_up,:] .< ρ_gm*a_min
-            ρ_area_change = max.(a_up_mask.*(ρ_gm*a_min .- solver_config.Q[:,i_ρa_up,:]),FT(0))
-            solver_config.Q[:,i_ρa_up,:]      .+= a_up_mask .*ρ_area_change
-            solver_config.Q[:,i_ρaθ_liq_up,:] .+= a_up_mask .*θ_liq_en.*ρ_area_change
-            solver_config.Q[:,i_ρaq_tot_up,:] .+= a_up_mask .*q_tot_en.*ρ_area_change
-            solver_config.Q[:,i_ρaw_up,:]     .+= a_up_mask .*w_en.*ρ_area_change
+            ρa_up_mask_min   = solver_config.Q[:,i_ρa_up,:] .< ρ_gm*a_min
+            ρa_up_mask_max   = solver_config.Q[:,i_ρa_up,:] .> ρ_gm*a_max
+            ρa_up    = solver_config.Q[:,i_ρa_up,:]
+            ρ_δa_min = max.(ρa_up_mask_min.*(ρ_gm*a_min.-ρa_up),FT(0))
+            ρ_δa_max = min.(ρa_up_mask_max.*(ρ_gm*a_max.-ρa_up),FT(0))
+
+            solver_config.Q[:,i_ρa_up,:]      .+= ρa_up_mask_min.*ρ_δa_min
+            solver_config.Q[:,i_ρaθ_liq_up,:] .+= ρa_up_mask_min.*ρ_δa_min.*θ_liq_en
+            solver_config.Q[:,i_ρaq_tot_up,:] .+= ρa_up_mask_min.*ρ_δa_min.*q_tot_en
+            solver_config.Q[:,i_ρaw_up,:]     .+= ρa_up_mask_min.*ρ_δa_min.*w_en
+
+            ρa_up    = solver_config.Q[:,i_ρa_up,:]
+            θ_liq_up = solver_config.Q[:,i_ρaθ_liq_up,:] ./ ρa_up
+            q_tot_up = solver_config.Q[:,i_ρaq_tot_up,:] ./ ρa_up
+            w_up     = solver_config.Q[:,i_ρaw_up,:]     ./ ρa_up
+
+            solver_config.Q[:,i_ρa_up,:]      .+= ρa_up_mask_max.*ρ_δa_max
+            solver_config.Q[:,i_ρaθ_liq_up,:] .+= ρa_up_mask_max.*ρ_δa_max.*θ_liq_up
+            solver_config.Q[:,i_ρaq_tot_up,:] .+= ρa_up_mask_max.*ρ_δa_max.*q_tot_up
+            solver_config.Q[:,i_ρaw_up,:]     .+= ρa_up_mask_max.*ρ_δa_max.*w_up
 
         end
         nothing
