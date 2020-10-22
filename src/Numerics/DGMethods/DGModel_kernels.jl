@@ -36,6 +36,7 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
     balance_law::BalanceLaw,
     ::Val{dim},
     ::Val{polyorder},
+    model_direction,
     direction,
     tendency,
     state_prognostic,
@@ -49,6 +50,7 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
     elems,
     α,
     β,
+    add_source = false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -139,7 +141,7 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
                     local_state_auxiliary,
                 ),
                 t,
-                (direction,),
+                (model_direction,),
             )
 
             @unroll for s in 1:num_state_prognostic
@@ -191,8 +193,8 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
             end
 
             # In the case of the remainder model we may need to loop through the
-            # models to add in restricted direction componennts
-            if direction isa EveryDirection && balance_law isa RemBL
+            # models to add in restricted direction components
+            if model_direction isa EveryDirection && balance_law isa RemBL
                 if rembl_has_subs_direction(HorizontalDirection(), balance_law)
                     fill!(local_flux, -zero(eltype(local_flux)))
                     flux_first_order!(
@@ -220,34 +222,6 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
                         end
                     end
                 end
-                if rembl_has_subs_direction(VerticalDirection(), balance_law)
-                    fill!(local_flux, -zero(eltype(local_flux)))
-                    flux_first_order!(
-                        balance_law,
-                        Grad{vars_state(balance_law, Prognostic(), FT)}(
-                            local_flux,
-                        ),
-                        Vars{vars_state(balance_law, Prognostic(), FT)}(
-                            local_state_prognostic,
-                        ),
-                        Vars{vars_state(balance_law, Auxiliary(), FT)}(
-                            local_state_auxiliary,
-                        ),
-                        t,
-                        (VerticalDirection(),),
-                    )
-                    @unroll for s in 1:num_state_prognostic
-                        F1, F2, F3 =
-                            local_flux[1, s], local_flux[2, s], local_flux[3, s]
-                        if dim == 2
-                            shared_flux[2, i, j, s] +=
-                                M * (ξ2x1 * F1 + ξ2x2 * F2 + ξ2x3 * F3)
-                        elseif dim == 3
-                            local_flux_3[s] +=
-                                M * (ξ3x1 * F1 + ξ3x2 * F2 + ξ3x3 * F3)
-                        end
-                    end
-                end
             end
 
             if dim == 3 && direction isa EveryDirection
@@ -259,22 +233,24 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
                 end
             end
 
-            fill!(local_source, -zero(eltype(local_source)))
-            source!(
-                balance_law,
-                Vars{vars_state(balance_law, Prognostic(), FT)}(local_source),
-                Vars{vars_state(balance_law, Prognostic(), FT)}(
-                    local_state_prognostic,
-                ),
-                Vars{vars_state(balance_law, GradientFlux(), FT)}(
-                    local_state_gradient_flux,
-                ),
-                Vars{vars_state(balance_law, Auxiliary(), FT)}(
-                    local_state_auxiliary,
-                ),
-                t,
-                (direction,),
-            )
+            if add_source
+                fill!(local_source, -zero(eltype(local_source)))
+                source!(
+                    balance_law,
+                    Vars{vars_state(balance_law, Prognostic(), FT)}(local_source),
+                    Vars{vars_state(balance_law, Prognostic(), FT)}(
+                        local_state_prognostic,
+                    ),
+                    Vars{vars_state(balance_law, GradientFlux(), FT)}(
+                        local_state_gradient_flux,
+                    ),
+                    Vars{vars_state(balance_law, Auxiliary(), FT)}(
+                        local_state_auxiliary,
+                    ),
+                    t,
+                    (model_direction,),
+                )
+            end
 
             @unroll for s in 1:num_state_prognostic
                 local_tendency[k, s] += local_source[s]
@@ -316,6 +292,7 @@ end
     balance_law::BalanceLaw,
     ::Val{dim},
     ::Val{polyorder},
+    model_direction,
     direction::VerticalDirection,
     tendency,
     state_prognostic,
@@ -329,6 +306,7 @@ end
     elems,
     α,
     β,
+    add_source=false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -465,6 +443,39 @@ end
                 end
             end
 
+            # In the case of the remainder model we may need to loop through the
+            # models to add in restricted direction components
+            if model_direction isa EveryDirection && balance_law isa RemBL
+                if rembl_has_subs_direction(VerticalDirection(), balance_law)
+                    fill!(local_flux, -zero(eltype(local_flux)))
+                    flux_first_order!(
+                        balance_law,
+                        Grad{vars_state(balance_law, Prognostic(), FT)}(
+                            local_flux,
+                        ),
+                        Vars{vars_state(balance_law, Prognostic(), FT)}(
+                            local_state_prognostic,
+                        ),
+                        Vars{vars_state(balance_law, Auxiliary(), FT)}(
+                            local_state_auxiliary,
+                        ),
+                        t,
+                        (VerticalDirection(),),
+                    )
+                    @unroll for s in 1:num_state_prognostic
+                        F1, F2, F3 = local_flux[1, s],
+                        local_flux[2, s],
+                        local_flux[3, s]
+                        Fv = M * (ζx1 * F1 + ζx2 * F2 + ζx3 * F3)
+                        if dim == 2
+                            shared_flux[i, j, s] += Fv
+                        else
+                            local_flux_total[1, s] += Fv
+                        end
+                    end
+                end
+            end
+
             if dim == 3
                 @unroll for n in 1:Nqk
                     MI = local_MI[n]
@@ -475,25 +486,27 @@ end
                 end
             end
 
-            fill!(local_source, -zero(eltype(local_source)))
-            source!(
-                balance_law,
-                Vars{vars_state(balance_law, Prognostic(), FT)}(local_source),
-                Vars{vars_state(balance_law, Prognostic(), FT)}(
-                    local_state_prognostic,
-                ),
-                Vars{vars_state(balance_law, GradientFlux(), FT)}(
-                    local_state_gradient_flux,
-                ),
-                Vars{vars_state(balance_law, Auxiliary(), FT)}(
-                    local_state_auxiliary,
-                ),
-                t,
-                (direction,),
-            )
+            if add_source
+                fill!(local_source, -zero(eltype(local_source)))
+                source!(
+                    balance_law,
+                    Vars{vars_state(balance_law, Prognostic(), FT)}(local_source),
+                    Vars{vars_state(balance_law, Prognostic(), FT)}(
+                        local_state_prognostic,
+                    ),
+                    Vars{vars_state(balance_law, GradientFlux(), FT)}(
+                        local_state_gradient_flux,
+                    ),
+                    Vars{vars_state(balance_law, Auxiliary(), FT)}(
+                        local_state_auxiliary,
+                    ),
+                    t,
+                    (direction,),
+                )
 
-            @unroll for s in 1:num_state_prognostic
-                local_tendency[k, s] += local_source[s]
+                @unroll for s in 1:num_state_prognostic
+                    local_tendency[k, s] += local_source[s]
+                end
             end
 
             @synchronize(dim == 2)
@@ -1030,7 +1043,7 @@ end
     D,
     ::Val{hypervisc_indexmap},
     elems,
-    increment=false
+    increment=false,
 ) where {dim, polyorder, hypervisc_indexmap}
     @uniform begin
         N = polyorder
@@ -1954,6 +1967,7 @@ end
     vgeo,
     D,
     elems,
+    increment = false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -2029,8 +2043,13 @@ end
         end
 
         @unroll for s in 1:ngradlapstate
-            Qhypervisc_div[ijk, s, e] = l_div[s]
+            if increment
+                Qhypervisc_div[ijk, s, e] += l_div[s]
+            else
+                Qhypervisc_div[ijk, s, e] = l_div[s]
+            end
         end
+
         @synchronize
     end
 end
@@ -2045,6 +2064,7 @@ end
     vgeo,
     D,
     elems,
+    increment = false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -2106,8 +2126,13 @@ end
         end
 
         @unroll for s in 1:ngradlapstate
-            Qhypervisc_div[ijk, s, e] = l_div[s]
+            if increment
+                Qhypervisc_div[ijk, s, e] += l_div[s]
+            else
+                Qhypervisc_div[ijk, s, e] = l_div[s]
+            end
         end
+
         @synchronize
     end
 end
@@ -2237,6 +2262,7 @@ end
     D,
     elems,
     t,
+    increment = false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -2345,7 +2371,11 @@ end
             t,
         )
         @unroll for s in 1:nhyperviscstate
-            Qhypervisc_grad[ijk, s, e] = local_state_hyperdiffusion[s]
+            if increment
+                Qhypervisc_grad[ijk, s, e] += local_state_hyperdiffusion[s]
+            else
+                Qhypervisc_grad[ijk, s, e] = local_state_hyperdiffusion[s]
+            end
         end
         @synchronize
     end
@@ -2365,6 +2395,7 @@ end
     D,
     elems,
     t,
+    increment = false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -2453,7 +2484,11 @@ end
             t,
         )
         @unroll for s in 1:nhyperviscstate
-            Qhypervisc_grad[ijk, s, e] = local_state_hyperdiffusion[s]
+            if increment
+                Qhypervisc_grad[ijk, s, e] += local_state_hyperdiffusion[s]
+            else
+                Qhypervisc_grad[ijk, s, e] = local_state_hyperdiffusion[s]
+            end
         end
         @synchronize
     end
