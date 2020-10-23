@@ -888,6 +888,11 @@ function hyperdiff_indexmap(balance_law, ::Type{FT}) where {FT}
     end
 end
 
+"""
+    launch_volume_gradients!(dg, state_prognostic, t; dependencies)
+
+Launches horizontal and vertical kernels for computing the volume gradients.
+"""
 function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
     FT = eltype(state_prognostic)
     Qhypervisc_grad, _ = dg.states_higher_order
@@ -895,7 +900,11 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
     info = basic_launch_info(dg)
     workgroup = (info.Nq, info.Nq)
     ndrange = (info.Nq * info.nrealelem, info.Nq)
+    comp_stream = dependencies
 
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa HorizontalDirection
         comp_stream = volume_gradients!(info.device, workgroup)(
@@ -913,10 +922,11 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
             Val(hyperdiff_indexmap(dg.balance_law, FT)),
             dg.grid.topology.realelems,
             ndrange = ndrange,
-            dependencies = dependencies,
+            dependencies = comp_stream,
         )
     end
 
+    # Now we call the kernel corresponding to the vertical direction
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa VerticalDirection
         comp_stream = volume_gradients!(info.device, workgroup)(
@@ -933,15 +943,25 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
             dg.grid.D,
             Val(hyperdiff_indexmap(dg.balance_law, FT)),
             dg.grid.topology.realelems,
+            # If we are computing the volume gradient in every direction, we
+            # need to increment into the appropriate fields _after_ the
+            # horizontal computation.
             !(dg.diffusion_direction isa VerticalDirection),
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+            dependencies = comp_stream,
         )
     end
     return comp_stream
 end
 
+"""
+    launch_interface_gradients!(dg, state_prognostic, t; surface::Symbol, dependencies)
+
+Launches horizontal and vertical kernels for computing the interface gradients.
+The argument `surface` is either `:interior` or `:exterior`, which denotes whether
+we are computing interface gradients on boundaries which are interior (exterior resp.)
+to the _parallel_ boundary.
+"""
 function launch_interface_gradients!(
     dg,
     state_prognostic,
@@ -964,6 +984,11 @@ function launch_interface_gradients!(
         ndrange = info.Nfp * info.nexteriorelem
     end
 
+    comp_stream = dependencies
+
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa HorizontalDirection
         comp_stream = interface_gradients!(info.device, workgroup)(
@@ -985,10 +1010,11 @@ function launch_interface_gradients!(
             Val(hyperdiff_indexmap(dg.balance_law, FT)),
             elems;
             ndrange = ndrange,
-            dependencies = dependencies,
+            dependencies = comp_stream,
         )
     end
 
+    # Vertical interface kernel call
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa VerticalDirection
         comp_stream = interface_gradients!(info.device, workgroup)(
@@ -1010,13 +1036,17 @@ function launch_interface_gradients!(
             Val(hyperdiff_indexmap(dg.balance_law, FT)),
             elems;
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+            dependencies = comp_stream,
         )
     end
     return comp_stream
 end
 
+"""
+    launch_volume_divergence_of_gradients!(dg, state_prognostic, t; dependencies)
+
+Launches horizontal and vertical volume kernels for computing the divergence of gradients.
+"""
 function launch_volume_divergence_of_gradients!(
     dg,
     state_prognostic,
@@ -1028,7 +1058,11 @@ function launch_volume_divergence_of_gradients!(
     info = basic_launch_info(dg)
     workgroup = (info.Nq, info.Nq, info.Nqk)
     ndrange = (info.nrealelem * info.Nq, info.Nq, info.Nqk)
+    comp_stream = dependencies
 
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa HorizontalDirection
         comp_stream = volume_divergence_of_gradients!(info.device, workgroup)(
@@ -1042,10 +1076,11 @@ function launch_volume_divergence_of_gradients!(
             dg.grid.D,
             dg.grid.topology.realelems;
             ndrange = ndrange,
-            dependencies = dependencies,
+            dependencies = comp_stream,
         )
     end
 
+    # And now the vertical kernel call
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa VerticalDirection
         comp_stream = volume_divergence_of_gradients!(info.device, workgroup)(
@@ -1058,15 +1093,25 @@ function launch_volume_divergence_of_gradients!(
             dg.grid.vgeo,
             dg.grid.D,
             dg.grid.topology.realelems,
+            # If we are computing the volume gradient in every direction, we
+            # need to increment into the appropriate fields _after_ the
+            # horizontal computation.
             !(dg.diffusion_direction isa VerticalDirection);
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+            dependencies = comp_stream,
         )
     end
     return comp_stream
 end
 
+"""
+    launch_interface_divergence_of_gradients!(dg, state_prognostic, t; surface::Symbol, dependencies)
+
+Launches horizontal and vertical interface kernels for computing the divergence of gradients.
+The argument `surface` is either `:interior` or `:exterior`, which denotes whether
+we are computing values on boundaries which are interior (exterior resp.)
+to the _parallel_ boundary.
+"""
 function launch_interface_divergence_of_gradients!(
     dg,
     state_prognostic,
@@ -1086,7 +1131,11 @@ function launch_interface_divergence_of_gradients!(
         elems = dg.grid.exteriorelems
         ndrange = info.Nfp * info.nexteriorelem
     end
+    comp_stream = dependencies
 
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa HorizontalDirection
         comp_stream =
@@ -1105,10 +1154,11 @@ function launch_interface_divergence_of_gradients!(
                 dg.grid.elemtobndy,
                 elems;
                 ndrange = ndrange,
-                dependencies = dependencies,
+                dependencies = comp_stream,
             )
     end
 
+    # Vertical kernel call
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa VerticalDirection
         comp_stream =
@@ -1127,14 +1177,19 @@ function launch_interface_divergence_of_gradients!(
                 dg.grid.elemtobndy,
                 elems;
                 ndrange = ndrange,
-                dependencies = dg.diffusion_direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+                dependencies = comp_stream,
             )
     end
 
     return comp_stream
 end
 
+"""
+    launch_volume_gradients_of_laplacians!(dg, state_prognostic, t; dependencies)
+
+Launches horizontal and vertical volume kernels for computing the DG gradient of
+a second-order DG gradient (Laplacian).
+"""
 function launch_volume_gradients_of_laplacians!(
     dg,
     state_prognostic,
@@ -1146,7 +1201,11 @@ function launch_volume_gradients_of_laplacians!(
     info = basic_launch_info(dg)
     workgroup = (info.Nq, info.Nq, info.Nqk)
     ndrange = (info.nrealelem * info.Nq, info.Nq, info.Nqk)
+    comp_stream = dependencies
 
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa HorizontalDirection
         comp_stream = volume_gradients_of_laplacians!(info.device, workgroup)(
@@ -1164,10 +1223,11 @@ function launch_volume_gradients_of_laplacians!(
             dg.grid.topology.realelems,
             t;
             ndrange = ndrange,
-            dependencies = dependencies,
+            dependencies = comp_stream,
         )
     end
 
+    # Vertical kernel call
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa VerticalDirection
         comp_stream = volume_gradients_of_laplacians!(info.device, workgroup)(
@@ -1184,16 +1244,26 @@ function launch_volume_gradients_of_laplacians!(
             dg.grid.D,
             dg.grid.topology.realelems,
             t,
+            # If we are computing the volume gradient in every direction, we
+            # need to increment into the appropriate fields _after_ the
+            # horizontal computation.
             !(dg.diffusion_direction isa VerticalDirection);
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+            dependencies = comp_stream,
         )
     end
 
     return comp_stream
 end
 
+"""
+    launch_interface_gradients_of_laplacians!(dg, state_prognostic, t; surface::Symbol, dependencies)
+
+Launches horizontal and vertical interface kernels for computing the gradients of Laplacians
+(second-order gradients). The argument `surface` is either `:interior` or `:exterior`,
+which denotes whether we are computing values on boundaries which are interior (exterior resp.)
+to the _parallel_ boundary.
+"""
 function launch_interface_gradients_of_laplacians!(
     dg,
     state_prognostic,
@@ -1214,6 +1284,11 @@ function launch_interface_gradients_of_laplacians!(
         ndrange = info.Nfp * info.nexteriorelem
     end
 
+    comp_stream = dependencies
+
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa HorizontalDirection
         comp_stream =
@@ -1235,10 +1310,11 @@ function launch_interface_gradients_of_laplacians!(
                 elems,
                 t;
                 ndrange = ndrange,
-                dependencies = dependencies,
+                dependencies = comp_stream,
             )
     end
 
+    # Vertical kernel call
     if dg.diffusion_direction isa EveryDirection ||
        dg.diffusion_direction isa VerticalDirection
         comp_stream =
@@ -1260,14 +1336,18 @@ function launch_interface_gradients_of_laplacians!(
                 elems,
                 t;
                 ndrange = ndrange,
-                dependencies = dg.diffusion_direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+                dependencies = comp_stream,
             )
     end
 
     return comp_stream
 end
 
+"""
+    launch_volume_tendency!(dg, state_prognostic, t; dependencies)
+
+Launches horizontal and vertical volume kernels for computing tendencies (sources, sinks, etc).
+"""
 function launch_volume_tendency!(
     dg,
     tendency,
@@ -1282,7 +1362,11 @@ function launch_volume_tendency!(
     info = basic_launch_info(dg)
     workgroup = (info.Nq, info.Nq)
     ndrange = (info.Nq * info.nrealelem, info.Nq)
+    comp_stream = dependencies
 
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.direction isa EveryDirection || dg.direction isa HorizontalDirection
         comp_stream = volume_tendency!(info.device, workgroup)(
             dg.balance_law,
@@ -1302,12 +1386,14 @@ function launch_volume_tendency!(
             dg.grid.topology.realelems,
             α,
             β,
+            # If the model direction is horizontal, we want to be sure to add sources
             dg.direction isa HorizontalDirection,
             ndrange = ndrange,
-            dependencies = dependencies,
+            dependencies = comp_stream,
         )
     end
 
+    # Vertical kernel
     if dg.direction isa EveryDirection || dg.direction isa VerticalDirection
         comp_stream = volume_tendency!(info.device, workgroup)(
             dg.balance_law,
@@ -1326,17 +1412,29 @@ function launch_volume_tendency!(
             dg.grid.D,
             dg.grid.topology.realelems,
             α,
+            # If we are computing the volume gradient in every direction, we
+            # need to increment into the appropriate fields _after_ the
+            # horizontal computation.
             dg.direction isa EveryDirection ? true : β,
+            # Boolean to add source. In the case of EveryDirection, we always add the sources
+            # in the vertical kernel. Here, we make the assumption that we're either computing
+            # in every direction, or _just_ the vertical direction.
             true;
             ndrange = ndrange,
-            dependencies = dg.direction isa VerticalDirection ?
-                               dependencies : comp_stream,
+            dependencies = comp_stream,
         )
     end
 
     return comp_stream
 end
 
+"""
+    launch_interface_tendency!(dg, state_prognostic, t; surface::Symbol, dependencies)
+
+Launches horizontal and vertical interface kernels for computing tendencies (sources, sinks, etc).
+The argument `surface` is either `:interior` or `:exterior`, which denotes whether we are computing
+values on boundaries which are interior (exterior resp.) to the _parallel_ boundary.
+"""
 function launch_interface_tendency!(
     dg,
     tendency,
@@ -1360,6 +1458,11 @@ function launch_interface_tendency!(
         ndrange = info.Nfp * info.nexteriorelem
     end
 
+    comp_stream = dependencies
+
+    # If the model direction is EveryDirection, we need to perform
+    # both horizontal AND vertical kernel calls; otherwise, we only
+    # call the kernel corresponding to the model direction `dg.diffusion_direction`
     if dg.direction isa EveryDirection || dg.direction isa HorizontalDirection
         comp_stream = interface_tendency!(info.device, workgroup)(
             dg.balance_law,
@@ -1382,10 +1485,11 @@ function launch_interface_tendency!(
             elems,
             α;
             ndrange = ndrange,
-            dependencies = dependencies,
+            dependencies = comp_stream,
         )
     end
 
+    # Vertical kernel call
     if dg.direction isa EveryDirection || dg.direction isa VerticalDirection
         comp_stream = interface_tendency!(info.device, workgroup)(
             dg.balance_law,
@@ -1408,9 +1512,7 @@ function launch_interface_tendency!(
             elems,
             α;
             ndrange = ndrange,
-            dependencies = dependencies =
-                dg.direction isa VerticalDirection ? dependencies :
-                    comp_stream,
+            dependencies = comp_stream,
         )
     end
 
