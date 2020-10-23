@@ -921,8 +921,9 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
     info = basic_launch_info(dg)
     workgroup = (info.Nq, info.Nq)
     ndrange = (info.Nq * info.nrealelem, info.Nq)
-  
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa HorizontalDirection
+
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa HorizontalDirection
         comp_stream = volume_gradients!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -942,7 +943,8 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
         )
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa VerticalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa VerticalDirection
         comp_stream = volume_gradients!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -959,7 +961,8 @@ function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
             dg.grid.topology.realelems,
             !(dg.diffusion_direction isa VerticalDirection),
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ? dependencies : comp_stream,
+            dependencies = dg.diffusion_direction isa VerticalDirection ?
+                               dependencies : comp_stream,
         )
     end
     return comp_stream
@@ -987,7 +990,8 @@ function launch_interface_gradients!(
         ndrange = info.Nfp * info.nexteriorelem
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa HorizontalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa HorizontalDirection
         comp_stream = interface_gradients!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -1011,7 +1015,8 @@ function launch_interface_gradients!(
         )
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa VerticalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa VerticalDirection
         comp_stream = interface_gradients!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -1031,7 +1036,8 @@ function launch_interface_gradients!(
             Val(hyperdiff_indexmap(dg.balance_law, FT)),
             elems;
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ? dependencies : comp_stream,
+            dependencies = dg.diffusion_direction isa VerticalDirection ?
+                               dependencies : comp_stream,
         )
     end
     return comp_stream
@@ -1049,7 +1055,8 @@ function launch_volume_divergence_of_gradients!(
     workgroup = (info.Nq, info.Nq, info.Nqk)
     ndrange = (info.nrealelem * info.Nq, info.Nq, info.Nqk)
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa HorizontalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa HorizontalDirection
         comp_stream = volume_divergence_of_gradients!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -1065,7 +1072,8 @@ function launch_volume_divergence_of_gradients!(
         )
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa VerticalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa VerticalDirection
         comp_stream = volume_divergence_of_gradients!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -1078,7 +1086,8 @@ function launch_volume_divergence_of_gradients!(
             dg.grid.topology.realelems,
             !(dg.diffusion_direction isa VerticalDirection);
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ? dependencies : comp_stream,
+            dependencies = dg.diffusion_direction isa VerticalDirection ?
+                               dependencies : comp_stream,
         )
     end
     return comp_stream
@@ -1104,44 +1113,49 @@ function launch_interface_divergence_of_gradients!(
         ndrange = info.Nfp * info.nexteriorelem
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa HorizontalDirection
-        comp_stream = interface_divergence_of_gradients!(info.device, workgroup)(
-            dg.balance_law,
-            Val(info.dim),
-            Val(info.N),
-            HorizontalDirection(),
-            CentralNumericalFluxDivergence(),
-            Qhypervisc_grad.data,
-            Qhypervisc_div.data,
-            dg.grid.vgeo,
-            dg.grid.sgeo,
-            dg.grid.vmap⁻,
-            dg.grid.vmap⁺,
-            dg.grid.elemtobndy,
-            elems;
-            ndrange = ndrange,
-            dependencies = dependencies,
-        )
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa HorizontalDirection
+        comp_stream =
+            interface_divergence_of_gradients!(info.device, workgroup)(
+                dg.balance_law,
+                Val(info.dim),
+                Val(info.N),
+                HorizontalDirection(),
+                CentralNumericalFluxDivergence(),
+                Qhypervisc_grad.data,
+                Qhypervisc_div.data,
+                dg.grid.vgeo,
+                dg.grid.sgeo,
+                dg.grid.vmap⁻,
+                dg.grid.vmap⁺,
+                dg.grid.elemtobndy,
+                elems;
+                ndrange = ndrange,
+                dependencies = dependencies,
+            )
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa VerticalDirection
-        comp_stream = interface_divergence_of_gradients!(info.device, workgroup)(
-            dg.balance_law,
-            Val(info.dim),
-            Val(info.N),
-            VerticalDirection(),
-            CentralNumericalFluxDivergence(),
-            Qhypervisc_grad.data,
-            Qhypervisc_div.data,
-            dg.grid.vgeo,
-            dg.grid.sgeo,
-            dg.grid.vmap⁻,
-            dg.grid.vmap⁺,
-            dg.grid.elemtobndy,
-            elems;
-            ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ? dependencies : comp_stream,
-        )
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa VerticalDirection
+        comp_stream =
+            interface_divergence_of_gradients!(info.device, workgroup)(
+                dg.balance_law,
+                Val(info.dim),
+                Val(info.N),
+                VerticalDirection(),
+                CentralNumericalFluxDivergence(),
+                Qhypervisc_grad.data,
+                Qhypervisc_div.data,
+                dg.grid.vgeo,
+                dg.grid.sgeo,
+                dg.grid.vmap⁻,
+                dg.grid.vmap⁺,
+                dg.grid.elemtobndy,
+                elems;
+                ndrange = ndrange,
+                dependencies = dg.diffusion_direction isa VerticalDirection ?
+                               dependencies : comp_stream,
+            )
     end
 
     return comp_stream
@@ -1159,7 +1173,8 @@ function launch_volume_gradients_of_laplacians!(
     workgroup = (info.Nq, info.Nq, info.Nqk)
     ndrange = (info.nrealelem * info.Nq, info.Nq, info.Nqk)
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa HorizontalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa HorizontalDirection
         comp_stream = volume_gradients_of_laplacians!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -1179,7 +1194,8 @@ function launch_volume_gradients_of_laplacians!(
         )
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa VerticalDirection
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa VerticalDirection
         comp_stream = volume_gradients_of_laplacians!(info.device, workgroup)(
             dg.balance_law,
             Val(info.dim),
@@ -1196,7 +1212,8 @@ function launch_volume_gradients_of_laplacians!(
             t,
             !(dg.diffusion_direction isa VerticalDirection);
             ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ? dependencies : comp_stream,
+            dependencies = dg.diffusion_direction isa VerticalDirection ?
+                               dependencies : comp_stream,
         )
     end
 
@@ -1223,50 +1240,55 @@ function launch_interface_gradients_of_laplacians!(
         ndrange = info.Nfp * info.nexteriorelem
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa HorizontalDirection
-        comp_stream = interface_gradients_of_laplacians!(info.device, workgroup)(
-            dg.balance_law,
-            Val(info.dim),
-            Val(info.N),
-            HorizontalDirection(),
-            CentralNumericalFluxHigherOrder(),
-            Qhypervisc_grad.data,
-            Qhypervisc_div.data,
-            state_prognostic.data,
-            dg.state_auxiliary.data,
-            dg.grid.vgeo,
-            dg.grid.sgeo,
-            dg.grid.vmap⁻,
-            dg.grid.vmap⁺,
-            dg.grid.elemtobndy,
-            elems,
-            t;
-            ndrange = ndrange,
-            dependencies = dependencies,
-        )
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa HorizontalDirection
+        comp_stream =
+            interface_gradients_of_laplacians!(info.device, workgroup)(
+                dg.balance_law,
+                Val(info.dim),
+                Val(info.N),
+                HorizontalDirection(),
+                CentralNumericalFluxHigherOrder(),
+                Qhypervisc_grad.data,
+                Qhypervisc_div.data,
+                state_prognostic.data,
+                dg.state_auxiliary.data,
+                dg.grid.vgeo,
+                dg.grid.sgeo,
+                dg.grid.vmap⁻,
+                dg.grid.vmap⁺,
+                dg.grid.elemtobndy,
+                elems,
+                t;
+                ndrange = ndrange,
+                dependencies = dependencies,
+            )
     end
 
-    if dg.diffusion_direction isa EveryDirection || dg.diffusion_direction isa VerticalDirection
-        comp_stream = interface_gradients_of_laplacians!(info.device, workgroup)(
-            dg.balance_law,
-            Val(info.dim),
-            Val(info.N),
-            VerticalDirection(),
-            CentralNumericalFluxHigherOrder(),
-            Qhypervisc_grad.data,
-            Qhypervisc_div.data,
-            state_prognostic.data,
-            dg.state_auxiliary.data,
-            dg.grid.vgeo,
-            dg.grid.sgeo,
-            dg.grid.vmap⁻,
-            dg.grid.vmap⁺,
-            dg.grid.elemtobndy,
-            elems,
-            t;
-            ndrange = ndrange,
-            dependencies = dg.diffusion_direction isa VerticalDirection ? dependencies : comp_stream,
-        )
+    if dg.diffusion_direction isa EveryDirection ||
+       dg.diffusion_direction isa VerticalDirection
+        comp_stream =
+            interface_gradients_of_laplacians!(info.device, workgroup)(
+                dg.balance_law,
+                Val(info.dim),
+                Val(info.N),
+                VerticalDirection(),
+                CentralNumericalFluxHigherOrder(),
+                Qhypervisc_grad.data,
+                Qhypervisc_div.data,
+                state_prognostic.data,
+                dg.state_auxiliary.data,
+                dg.grid.vgeo,
+                dg.grid.sgeo,
+                dg.grid.vmap⁻,
+                dg.grid.vmap⁺,
+                dg.grid.elemtobndy,
+                elems,
+                t;
+                ndrange = ndrange,
+                dependencies = dg.diffusion_direction isa VerticalDirection ?
+                               dependencies : comp_stream,
+            )
     end
 
     return comp_stream
@@ -1333,7 +1355,8 @@ function launch_volume_tendency!(
             dg.direction isa EveryDirection ? true : β,
             true;
             ndrange = ndrange,
-            dependencies = dg.direction isa VerticalDirection ? dependencies : comp_stream,
+            dependencies = dg.direction isa VerticalDirection ?
+                               dependencies : comp_stream,
         )
     end
 
@@ -1411,7 +1434,9 @@ function launch_interface_tendency!(
             elems,
             α;
             ndrange = ndrange,
-            dependencies = dependencies = dg.direction isa VerticalDirection ? dependencies : comp_stream,
+            dependencies = dependencies =
+                dg.direction isa VerticalDirection ? dependencies :
+                    comp_stream,
         )
     end
 

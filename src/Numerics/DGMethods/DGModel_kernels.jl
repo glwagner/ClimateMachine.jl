@@ -237,7 +237,9 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
                 fill!(local_source, -zero(eltype(local_source)))
                 source!(
                     balance_law,
-                    Vars{vars_state(balance_law, Prognostic(), FT)}(local_source),
+                    Vars{vars_state(balance_law, Prognostic(), FT)}(
+                        local_source,
+                    ),
                     Vars{vars_state(balance_law, Prognostic(), FT)}(
                         local_state_prognostic,
                     ),
@@ -251,10 +253,10 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
                     (model_direction,),
                 )
 
-            @unroll for s in 1:num_state_prognostic
-                local_tendency[k, s] += local_source[s]
-            end
-            
+                @unroll for s in 1:num_state_prognostic
+                    local_tendency[k, s] += local_source[s]
+                end
+
             end
             @synchronize
 
@@ -307,7 +309,7 @@ end
     elems,
     α,
     β,
-    add_source=false,
+    add_source = false,
 ) where {dim, polyorder}
     @uniform begin
         N = polyorder
@@ -464,9 +466,8 @@ end
                         (VerticalDirection(),),
                     )
                     @unroll for s in 1:num_state_prognostic
-                        F1, F2, F3 = local_flux[1, s],
-                        local_flux[2, s],
-                        local_flux[3, s]
+                        F1, F2, F3 =
+                            local_flux[1, s], local_flux[2, s], local_flux[3, s]
                         Fv = M * (ζx1 * F1 + ζx2 * F2 + ζx3 * F3)
                         if dim == 2
                             shared_flux[i, j, s] += Fv
@@ -491,7 +492,9 @@ end
                 fill!(local_source, -zero(eltype(local_source)))
                 source!(
                     balance_law,
-                    Vars{vars_state(balance_law, Prognostic(), FT)}(local_source),
+                    Vars{vars_state(balance_law, Prognostic(), FT)}(
+                        local_source,
+                    ),
                     Vars{vars_state(balance_law, Prognostic(), FT)}(
                         local_state_prognostic,
                     ),
@@ -860,7 +863,7 @@ end
     D,
     ::Val{hypervisc_indexmap},
     elems,
-    increment = false
+    increment = false,
 ) where {dim, polyorder, hypervisc_indexmap}
     @uniform begin
         N = polyorder
@@ -983,19 +986,19 @@ end
 
             @unroll for s in 1:ngradlapstate
                 if increment
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] +=
-                    local_transform_gradient[1, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] +=
-                    local_transform_gradient[2, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] +=
-                    local_transform_gradient[3, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] +=
+                        local_transform_gradient[1, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] +=
+                        local_transform_gradient[2, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] +=
+                        local_transform_gradient[3, hypervisc_indexmap[s], k]
                 else
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] =
-                    local_transform_gradient[1, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] =
-                    local_transform_gradient[2, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] =
-                    local_transform_gradient[3, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] =
+                        local_transform_gradient[1, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] =
+                        local_transform_gradient[2, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] =
+                        local_transform_gradient[3, hypervisc_indexmap[s], k]
                 end
             end
 
@@ -1027,11 +1030,11 @@ end
 
                 @unroll for s in 1:num_state_gradient_flux
                     if increment
-                      state_gradient_flux[ijk, s, e] +=
-                        local_state_gradient_flux[s]
+                        state_gradient_flux[ijk, s, e] +=
+                            local_state_gradient_flux[s]
                     else
-                    state_gradient_flux[ijk, s, e] =
-                        local_state_gradient_flux[s]
+                        state_gradient_flux[ijk, s, e] =
+                            local_state_gradient_flux[s]
                     end
                 end
             end
@@ -1053,7 +1056,7 @@ end
     D,
     ::Val{hypervisc_indexmap},
     elems,
-    increment=false,
+    increment = false,
 ) where {dim, polyorder, hypervisc_indexmap}
     @uniform begin
         N = polyorder
@@ -1175,19 +1178,19 @@ end
 
             @unroll for s in 1:ngradlapstate
                 if increment
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] +=
-                    local_transform_gradient[1, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] +=
-                    local_transform_gradient[2, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] +=
-                    local_transform_gradient[3, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] +=
+                        local_transform_gradient[1, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] +=
+                        local_transform_gradient[2, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] +=
+                        local_transform_gradient[3, hypervisc_indexmap[s], k]
                 else
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] =
-                    local_transform_gradient[1, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] =
-                    local_transform_gradient[2, hypervisc_indexmap[s], k]
-                Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] =
-                    local_transform_gradient[3, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] =
+                        local_transform_gradient[1, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] =
+                        local_transform_gradient[2, hypervisc_indexmap[s], k]
+                    Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] =
+                        local_transform_gradient[3, hypervisc_indexmap[s], k]
                 end
             end
 
@@ -1219,11 +1222,11 @@ end
 
                 @unroll for s in 1:num_state_gradient_flux
                     if increment
-                    state_gradient_flux[ijk, s, e] +=
-                        local_state_gradient_flux[s]
+                        state_gradient_flux[ijk, s, e] +=
+                            local_state_gradient_flux[s]
                     else
-                    state_gradient_flux[ijk, s, e] =
-                        local_state_gradient_flux[s]
+                        state_gradient_flux[ijk, s, e] =
+                            local_state_gradient_flux[s]
                     end
                 end
             end
