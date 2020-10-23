@@ -250,10 +250,11 @@ Computational kernel: Evaluate the volume integrals on right-hand side of a
                     t,
                     (model_direction,),
                 )
-            end
 
             @unroll for s in 1:num_state_prognostic
                 local_tendency[k, s] += local_source[s]
+            end
+            
             end
             @synchronize
 
@@ -396,7 +397,7 @@ end
                     local_state_auxiliary,
                 ),
                 t,
-                (direction,),
+                (model_direction,),
             )
 
             @unroll for s in 1:num_state_prognostic
@@ -501,7 +502,7 @@ end
                         local_state_auxiliary,
                     ),
                     t,
-                    (direction,),
+                    (model_direction,),
                 )
 
                 @unroll for s in 1:num_state_prognostic
@@ -981,12 +982,21 @@ end
             end
 
             @unroll for s in 1:ngradlapstate
+                if increment
+                Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] +=
+                    local_transform_gradient[1, hypervisc_indexmap[s], k]
+                Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] +=
+                    local_transform_gradient[2, hypervisc_indexmap[s], k]
+                Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] +=
+                    local_transform_gradient[3, hypervisc_indexmap[s], k]
+                else
                 Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] =
                     local_transform_gradient[1, hypervisc_indexmap[s], k]
                 Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] =
                     local_transform_gradient[2, hypervisc_indexmap[s], k]
                 Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] =
                     local_transform_gradient[3, hypervisc_indexmap[s], k]
+                end
             end
 
             if num_state_gradient_flux > 0
@@ -1164,12 +1174,21 @@ end
             end
 
             @unroll for s in 1:ngradlapstate
+                if increment
+                Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] +=
+                    local_transform_gradient[1, hypervisc_indexmap[s], k]
+                Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] +=
+                    local_transform_gradient[2, hypervisc_indexmap[s], k]
+                Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] +=
+                    local_transform_gradient[3, hypervisc_indexmap[s], k]
+                else
                 Qhypervisc_grad[ijk, 3 * (s - 1) + 1, e] =
                     local_transform_gradient[1, hypervisc_indexmap[s], k]
                 Qhypervisc_grad[ijk, 3 * (s - 1) + 2, e] =
                     local_transform_gradient[2, hypervisc_indexmap[s], k]
                 Qhypervisc_grad[ijk, 3 * (s - 1) + 3, e] =
                     local_transform_gradient[3, hypervisc_indexmap[s], k]
+                end
             end
 
             if num_state_gradient_flux > 0
