@@ -24,29 +24,9 @@
 # 3) Collapsed experiment design
 # 4) Updates to generally keep this in sync with master
 
-@article{doi:10.1175/1520-0469(2003)60<1201:ALESIS>2.0.CO;2,
-author = {Siebesma, A. Pier and Bretherton,
-          Christopher S. and Brown,
-          Andrew and Chlond,
-          Andreas and Cuxart,
-          Joan and Duynkerke,
-          Peter G. and Jiang,
-          Hongli and Khairoutdinov,
-          Marat and Lewellen,
-          David and Moeng,
-          Chin-Hoh and Sanchez,
-          Enrique and Stevens,
-          Bjorn and Stevens,
-          David E.},
-title = {A Large Eddy Simulation Intercomparison Study of Shallow Cumulus Convection},
-journal = {Journal of the Atmospheric Sciences},
-volume = {60},
-number = {10},
-pages = {1201-1219},
-year = {2003},
-doi = {10.1175/1520-0469(2003)60<1201:ALESIS>2.0.CO;2},
-URL = {https://journals.ametsoc.org/doi/abs/10.1175/1520-0469%282003%2960%3C1201%3AALESIS%3E2.0.CO%3B2},
-eprint = {https://journals.ametsoc.org/doi/pdf/10.1175/1520-0469%282003%2960%3C1201%3AALESIS%3E2.0.CO%3B2}
+Beare, R.J., Macvean, M.K., Holtslag, A.A.M. et al.
+An Intercomparison of Large-Eddy Simulations of the Stable Boundary Layer.
+Boundary-Layer Meteorol 118, 247–272 (2006). https://doi.org/10.1007/s10546-004-2820-6
 =#
 
 using ArgParse
@@ -197,7 +177,7 @@ No tendencies are applied in gabls
 """
 function init_gabls!(problem, bl, state, aux, (x, y, z), t)
     # This experiment runs the gabls LES Configuration
-    # (Shallow cumulus cloud regime)
+    # (Stable boundary layer regime)
     # x,y,z imply eastward, northward and altitude coordinates in `[m]`
 
     # Problem floating point precision
@@ -222,7 +202,7 @@ function init_gabls!(problem, bl, state, aux, (x, y, z), t)
         # Well mixed layer
         θ_dry = FT(265)
     else
-        # Conditionally unstable layer
+        # Stable layer
         θ_dry = FT(265) + (z - FT(100.0)) * FT(0.01)
     end
     # Scale height based on surface parameters
@@ -250,8 +230,8 @@ function init_gabls!(problem, bl, state, aux, (x, y, z), t)
     state.ρu = SVector(ρu, ρv, ρw)
     state.ρe = ρe_tot
 
-    if z <= FT(400) # Add random perturbations to bottom 400m of model
-        state.ρe += rand() * ρe_tot / 100
+    if z <= FT(100) # Add random perturbations to bottom 100m of model
+        state.ρe += (rand() - FT(0.5)) * ρe_tot / 100
     end
     init_state_prognostic!(bl.turbconv, bl, state, aux, (x, y, z), t)
 end
@@ -268,13 +248,13 @@ function gabls_model(
 
     C_smag = FT(0.23)     # Smagorinsky coefficient
 
-    u_star = FT(0.28)     # Friction velocity
+    u_star = FT(0.25)     # Friction velocity
     C_drag = FT(0.0011)   # Bulk transfer coefficient
 
     T_sfc = FT(265)     # Surface temperature `[K]`
     SHF = FT(0)         # Sensible heat flux `[W/m²]`
 
-    z_sponge = FT(200)     # Start of sponge layer
+    z_sponge = FT(100)     # Start of sponge layer
     α_max = FT(0.75)        # Strength of sponge layer (timescale)
     γ = 2              # Strength of sponge layer (exponent)
 
@@ -302,7 +282,7 @@ function gabls_model(
     source = source_default
     # Set up problem initial and boundary conditions
     if surface_flux == "prescribed"
-        energy_bc = PrescribedEnergyFlux((state, aux, t) -> SHF)
+        energy_bc = PrescribedTemperature((state, aux, t) -> T_sfc - FT(0.25/3600.0)*t)
     elseif surface_flux == "bulk"
         energy_bc = BulkFormulaEnergy(
             (state, aux, t, normPu_int) -> C_drag,

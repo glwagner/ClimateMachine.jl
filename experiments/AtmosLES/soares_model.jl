@@ -264,8 +264,8 @@ function init_soares!(problem, bl, state, aux, (x, y, z), t)
     end
 
     if z <= FT(400) # Add random perturbations to bottom 400m of model
-        state.ρe += rand() * ρe_tot / 100
-        state.moisture.ρq_tot += rand() * ρ * q_tot / 100
+        state.ρe += (rand() - FT(0.5)) * ρe_tot / 100
+        state.moisture.ρq_tot += (rand() - FT(0.5)) * ρ * q_tot / 100
     end
     init_state_prognostic!(bl.turbconv, bl, state, aux, (x, y, z), t)
 end
