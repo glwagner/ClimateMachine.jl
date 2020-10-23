@@ -51,7 +51,7 @@ function dv_attrib end
         DVT <: DiagnosticVar,
     }
 
-Returns a tuple of the arguments required for the implementation of the
+Returns a tuple of the arguments specified by the implementation of the
 diagnostic variables.
 """
 function dv_args end
@@ -70,8 +70,8 @@ function dv_dims end
 
 # Default method for variable attributes.
 dv_attrib(
-    ::Type{ClimateMachineConfigType},
-    ::Type{DiagnosticVar},
+    ::ClimateMachineConfigType,
+    ::DiagnosticVar,
 ) = Dict()
 
 # Default method for variable dimensions.

@@ -1,32 +1,102 @@
-function get_comps_used(config_type, dvarnames)
-    comps = Set()
-    for name in dvarnames
-        ct = getfield(ConfigTypes, config_type)
-        dvar = AllDiagnosticVars[ct][name]
-        push!(comps, first(dv_args(ct, dvar)))
+# Given an expression that is either a symbol which is a type name or a
+# Union of types, each of which shares the same supertype, return the
+# supertype.
+parent_type(sym::Symbol) = supertype(getfield(@__MODULE__, sym))
+function parent_type(ex::Expr)
+    @assert ex.head == :curly && ex.args[1] == :Union
+    st = supertype(getfield(@__MODULE__, ex.args[2]))
+    for ut in ex.args[3:end]
+        otherst = supertype(getfield(@__MODULE__, ut))
+        @assert otherst == st
     end
-    println(comps)
-    return comps
+    return st
 end
+# Return `true` if the specified symbol is a type name that is a subtype
+# of `BalanceLaw` and `false` otherwise.
+isa_bl(sym::Symbol) = any(
+    bl -> endswith(bl, "." * String(sym)),
+    map(bl -> String(Symbol(bl)), subtypes(BalanceLaw)),
+)
+isa_bl(ex) = false
 
-# Generate the `VariableTemplates` defining functions for the specified
-# `dvarnames`.
-function generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
-    varsfun = Symbol("vars_", name)
-    vardecls = []
-    comps = get_comps_used(config_type, dvarnames)
-    compdecls = []
-    for name in dvarnames
-        push!(vardecls, :($(Symbol(name))::FT))
-    end
+# Generate a `VariableTemplates` defining function.
+function generate_vars_fun(varsfun, dn, DT, vardecls, compdecls)
     quote
-        function $varsfun(bl::BalanceLaw, FT)
+        function $varsfun($dn::$DT, FT)
             @vars begin
                 $(vardecls...)
                 $(compdecls...)
             end
         end
     end
+end
+
+# Generate the `VariableTemplates` defining functions for the specified
+# `dvarnames`.
+function generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
+    varsfun = Symbol("vars_", name)
+    CT = getfield(ConfigTypes, config_type)
+
+    # Group the diagnostic variables specified by the dispatch types
+    # specified in their implementations.
+    DT_name_map = Dict()
+    DT_var_map = Dict()
+    for dvname in dvarnames
+        dvar = AllDiagnosticVars[CT][dvname]
+        dispatch_arg = first(dv_args(CT, dvar))
+        DT = dispatch_arg[2]
+        compname = get(DT_name_map, DT, nothing)
+        if isnothing(compname)
+            DT_name_map[DT] = dispatch_arg[1]
+        else
+            @assert compname == dispatch_arg[1]
+        end
+        dvlst = get!(DT_var_map, DT, [])
+        push!(dvlst, :($(Symbol(dvname))::FT))
+    end
+
+    # Generate a function for each dispatch type.
+    vars_funs = []
+    for (DT, dvlst) in DT_var_map
+        # The top-level function must be for the `BalanceLaw` and it must
+        # also contain component declarations, i.e. calls to the other
+        # generated functions.
+        complst = []
+        if isa_bl(DT)
+            for (otherDT, compname) in DT_name_map
+                if otherDT != DT
+                    push!(
+                        complst,
+                        :($(compname)::$varsfun(bl.$compname, FT)),
+                    )
+                end
+            end
+        else
+            # Add an empty function for the parent of the dispatch type.
+            push!(
+                vars_funs,
+                generate_vars_fun(
+                    varsfun,
+                    DT_name_map[DT],
+                    parent_type(DT),
+                    [],
+                    [],
+                ),
+            )
+        end
+        push!(
+            vars_funs,
+            generate_vars_fun(
+                varsfun,
+                DT_name_map[DT],
+                DT,
+                dvlst,
+                complst,
+            ),
+        )
+    end
+
+    return Expr(:block, (vars_funs...))
 end
 
 # Generate `setup_$(name)(...)` which will create the `DiagnosticsGroup`
@@ -50,14 +120,14 @@ function generate_setup_fun(name, config_type, on_grid, params_type)
         }
             return DiagnosticsGroup(
                 $(name),
-                Diagnostics.$(initfun),
-                Diagnostics.$(collectfun),
-                Diagnostics.$(finifun),
+                $(initfun),
+                $(collectfun),
+                $(finifun),
                 interval,
                 out_prefix,
                 writer,
                 interpol,
-                $(on_grid == GridDG),
+                $(on_grid === :GridDG),
                 params,
             )
         end
@@ -65,11 +135,11 @@ function generate_setup_fun(name, config_type, on_grid, params_type)
 end
 
 # Generate the `dims` dictionary for `Writers.init_data`.
-function generate_init_dims(name, config_type, on_grid, dvarnames)
+function generate_init_dims(name, config_type, on_grid, dvarnames, dvars)
     # Set up an error for when no InterpolationTopology is specified but the
     # group is on an interpolated grid.
     err_ex = quote end
-    if on_grid == GridInterpolated
+    if on_grid === :GridInterpolated
         err_ex = quote
             throw(
                 ArgumentError(
@@ -80,28 +150,27 @@ function generate_init_dims(name, config_type, on_grid, dvarnames)
         end
     end
 
-    # For a diagnostics group run on the DG grid, we add some "dimensions".
-    # For horizontal averages, we add a `z` dimension. For pointwise
-    # diagnostics, we add `nodes` and `elements`.
+    # For a diagnostics group run on the DG grid, we add some
+    # "dimensions". For pointwise diagnostics, we add `nodes` and
+    # `elements`. For horizontal averages, we add a `z` dimension.
     add_dim_ex = quote end
-    if on_grid == GridDG
-        add_ne_dims_ex = quote end
-        if any(dv -> dv isa PointwiseDiagnostic, dvarnames)
-            add_ne_dims_ex = quote
-                $(esc(dims))["nodes"] = (collect(1:$(esc(npoints))), Dict())
-                $(esc(dims))["elements"] = (collect(1:$(esc(nrealelem))), Dict())
+    if on_grid === :GridDG
+        add_z_dim_ex = quote end
+        if any(dv -> dv <: HorizontalAverage, dvars)
+            add_z_dim_ex = quote
+                dims["z"] = (AtmosCollected.zvals, Dict())
             end
         end
-        add_z_dim_ex = quote end
-        if any(dv -> dv isa HorizontalAverage, dvarnames)
-            add_z_dim_ex = quote
-                $(esc(dims))["z"] = ($(esc(AtmosCollected.zvals)), Dict())
+        add_ne_dims_ex = quote end
+        if any(dv -> dv <: PointwiseDiagnostic, dvars)
+            add_ne_dims_ex = quote
+                dims["nodes"] = (collect(1:npoints), Dict())
+                dims["elements"] = (collect(1:nrealelem), Dict())
             end
         end
         add_dim_ex = quote
-            $(esc(dims)) = OrderedDict()
-            $(add_ne_dims_ex)
             $(add_z_dim_ex)
+            $(add_ne_dims_ex)
         end
     end
 
@@ -123,16 +192,17 @@ function generate_init_dims(name, config_type, on_grid, dvarnames)
 end
 
 # Generate the `vars` dictionary for `Writers.init_data`.
-function generate_init_vars(name, config_type, on_grid, dvarnames, dims)
+function generate_init_vars(name, config_type, on_grid, dvarnames, dvars)
+    CT = getfield(ConfigTypes, config_type)
     elems = ()
 
-    for dvar in dvarnames
+    for dvar in dvars
         elems = (
             elems...,
-            dv_name(config_type, dvar) => (
-                :(dv_dims($dvar, dims)), # TODO: dims?
-                FT,
-                dv_attrib(config_type, dvar),
+            dv_name(CT, dvar) => (
+                :(dv_dims($dvar, esc(dims))), # TODO: dims?
+                :FT,
+                dv_attrib(CT, dvar),
             )
         )
     end
@@ -146,23 +216,36 @@ end
 # `DiagnosticsGroup` when called.
 function generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
     init_name = Symbol(name, "_init")
+    CT = getfield(ConfigTypes, config_type)
+
+    dvars = [AllDiagnosticVars[CT][dvname] for dvname in dvarnames]
+
     quote
-        function $(esc(init_name))(dgngrp, curr_time)
+        function $init_name(dgngrp, curr_time)
+            interpol = dgngrp.interpol
             mpicomm = Settings.mpicomm
             mpirank = MPI.Comm_rank(mpicomm)
             dg = Settings.dg
             bl = dg.balance_law
+            grid = dg.grid
+            topology = grid.topology
+            N = polynomialorder(grid)
+            Nq = N + 1
+            Nqk = dimensionality(grid) == 2 ? 1 : Nq
+            npoints = Nq * Nq * Nqk
+            nrealelem = length(topology.realelems)
+            nvertelem = topology.stacksize
+            nhorzelem = div(nrealelem, nvertelem)
             Q = Settings.Q
             FT = eltype(Q)
-            interpol = dgngrp.interpol
 
             if dgngrp.onetime
                 atmos_collect_onetime(Settings.mpicomm, Settings.dg, Settings.Q)
             end
 
             if mpirank == 0
-                dims = $(generate_init_dims(name, config_type, on_grid, dvarnames))
-                vars = $(generate_init_vars(name, config_type, on_grid, dvarnames))
+                dims = $(generate_init_dims(name, config_type, on_grid, dvarnames, dvars))
+                vars = $(generate_init_vars(name, config_type, on_grid, dvarnames, dvars))
 
                 # create the output file
                 dprefix = @sprintf(

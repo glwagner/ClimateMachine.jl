@@ -1,7 +1,6 @@
 using ..Atmos
 using ..ConfigTypes
-using ..Thermodynamics
-using ..TurbulenceClosures
+using ..DiagnosticsMachine
 
 @diagnostics_group(
     "AtmosLESDefault",
