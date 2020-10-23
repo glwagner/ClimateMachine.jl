@@ -14,6 +14,8 @@ export AbstractTopology,
 
 export grid1d, SingleExponentialStretching, InteriorStretching
 
+export basic_topology_info
+
 """
     AbstractTopology{dim}
 
@@ -235,15 +237,17 @@ end
 Base.getproperty(a::CubedShellTopology, p::Symbol) =
     getproperty(getfield(a, :topology), p)
 
+abstract type AbstractStackedTopology{dim} <: AbstractTopology{dim} end
+
 
 """
-    StackedBrickTopology{dim, T} <: AbstractTopology{dim}
+    StackedBrickTopology{dim, T} <: AbstractStackedTopology{dim}
 
 A simple grid-based topology, where all elements on the trailing dimension are
 stacked to be contiguous. This is a convenience wrapper around
 [`BoxElementTopology`](@ref).
 """
-struct StackedBrickTopology{dim, T} <: AbstractTopology{dim}
+struct StackedBrickTopology{dim, T} <: AbstractStackedTopology{dim}
     topology::BoxElementTopology{dim, T}
     stacksize::Int64
 end
@@ -1293,6 +1297,27 @@ function grid1d(a::A, b::B, stretch::InteriorStretching, nelem) where {A, B}
     s = range(zero(F), stop = one(F), length = nelem + 1)
     range(a, stop = b, length = nelem + 1) .+
     coe .* (stretch.attractor .- (b - a) .* s) .* (1 .- s) .* s
+end
+
+function basic_topology_info(topology::AbstractStackedTopology)
+    nelem = length(topology.elems)
+    nvertelem = topology.stacksize
+    nhorzelem = div(nelem, nvertelem)
+    nrealelem = length(topology.realelems)
+
+    return (
+        nelem = nelem,
+        nvertelem = nvertelem,
+        nhorzelem = nhorzelem,
+        nrealelem = nrealelem,
+    )
+end
+
+function basic_topology_info(topology::AbstractTopology)
+    return (
+        nelem = length(topology.elems),
+        nrealelem = length(topology.realelems),
+    )
 end
 
 end

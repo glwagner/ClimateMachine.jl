@@ -59,8 +59,6 @@ include("remainder.jl")
 
 function basic_grid_info(dg::DGModel)
     grid = dg.grid
-    topology = grid.topology
-
     dim = dimensionality(grid)
     N = polynomialorder(grid)
 
@@ -69,22 +67,29 @@ function basic_grid_info(dg::DGModel)
     Nfp = Nq * Nqk
     Np = dofs_per_element(grid)
 
-    nelem = length(topology.elems)
-    nvertelem = topology.stacksize
-    nhorzelem = div(nelem, nvertelem)
-    nrealelem = length(topology.realelems)
-    nhorzrealelem = div(nrealelem, nvertelem)
+    topology_info = basic_topology_info(grid.topology)
 
-    return (
+    ninteriorelem = length(dg.grid.interiorelems)
+    nexteriorelem = length(dg.grid.exteriorelems)
+
+    grid_info = (
+        dim = dim,
+        N = N,
         Nq = Nq,
         Nqk = Nqk,
         Nfp = Nfp,
         Np = Np,
-        nvertelem = nvertelem,
-        nhorzelem = nhorzelem,
-        nhorzrealelem = nhorzrealelem,
-        nrealelem = nrealelem,
+        ninteriorelem = ninteriorelem,
+        nexteriorelem = nexteriorelem,
     )
+
+    return merge(grid_info, topology_info)
+end
+
+function basic_launch_info(dg::DGModel)
+    device = array_device(dg.state_auxiliary)
+    grid_info = basic_grid_info(dg)
+    return merge(grid_info, (device = device,))
 end
 
 """
@@ -881,37 +886,6 @@ function hyperdiff_indexmap(balance_law, ::Type{FT}) where {FT}
     else
         return nothing
     end
-end
-
-function basic_launch_info(dg::DGModel)
-    device = array_device(dg.state_auxiliary)
-    grid = dg.grid
-    topology = grid.topology
-
-    dim = dimensionality(grid)
-    N = polynomialorder(grid)
-
-    Nq = N + 1
-    Nqk = dim == 2 ? 1 : Nq
-    Nfp = Nq * Nqk
-    Np = dofs_per_element(grid)
-
-    nrealelem = length(topology.realelems)
-    ninteriorelem = length(dg.grid.interiorelems)
-    nexteriorelem = length(dg.grid.exteriorelems)
-
-    return (
-        device = device,
-        dim = dim,
-        N = N,
-        Nq = Nq,
-        Nqk = Nqk,
-        Nfp = Nfp,
-        Np = Np,
-        nrealelem = nrealelem,
-        ninteriorelem = ninteriorelem,
-        nexteriorelem = nexteriorelem,
-    )
 end
 
 function launch_volume_gradients!(dg, state_prognostic, t; dependencies)
