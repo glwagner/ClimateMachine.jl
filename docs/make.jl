@@ -8,6 +8,8 @@ ENV["CLIMATEMACHINE_SETTINGS_DISABLE_GPU"] = true
 ENV["CLIMATEMACHINE_SETTINGS_DISABLE_CUSTOM_LOGGER"] = true
 
 using Distributed
+using DocumenterCitations
+bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 
 @everywhere using ClimateMachine
 @everywhere using Documenter, Literate
@@ -50,6 +52,7 @@ format = Documenter.HTML(
 )
 
 makedocs(
+    bib,
     sitename = "ClimateMachine",
     doctest = false,
     strict = true,
