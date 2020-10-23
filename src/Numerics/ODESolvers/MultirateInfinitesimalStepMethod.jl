@@ -24,19 +24,20 @@ mutable struct TimeScaledRHS{N,RT}
     b::RT
     rhs!
     function TimeScaledRHS(a,b,rhs!)
-    RT = typeof(a)
-    if isa(rhs!, Tuple)
-      N=length(rhs!)
-    else
-      N=1
-    end
-    new{N,RT}(a, b, rhs!)
+        RT = typeof(a)
+        if isa(rhs!, Tuple)
+            N=length(rhs!)
+        else
+            N=1
+        end
+        new{N,RT}(a, b, rhs!)
     end
 end
 
 function (o::TimeScaledRHS{1,RT} where {RT})(dQ, Q, params, tau; increment)
   o.rhs!(dQ, Q, params, o.a + o.b * tau; increment = increment)
 end
+
 function (o::TimeScaledRHS{2,RT} where {RT})(dQ, Q, params, tau, i; increment)
   o.rhs![i](dQ, Q, params, o.a + o.b * tau; increment = increment)
 end
@@ -156,6 +157,13 @@ mutable struct MultirateInfinitesimalStep{
             if i > 1
                 c[i] += sum(j -> (α[i, j] + γ[i, j]) * c[j], 1:(i - 1))
             end
+
+            # When d[i] = 0, we do not perform fast substepping, therefore
+            # we do not need to scale the β, γ coefficients
+            if !(abs(d[i]) < 1.e-10)
+                β[i,:] ./= d[i]
+                γ[i,:] ./= d[i]
+            end
         end
         c̃ = α * c
 
@@ -258,8 +266,7 @@ function dostep!(Q, mis::MultirateInfinitesimalStep, p, time)
 
         groupsize = 256
         event = Event(array_device(Q))
-        if abs(d[i]) < 1.e-10
-            event = update!(array_device(Q), groupsize)(
+        event = update!(array_device(Q), groupsize)(
                 realview(Q),
                 realview(offset),
                 Val(i),
@@ -273,26 +280,13 @@ function dostep!(Q, mis::MultirateInfinitesimalStep, p, time)
                 ndrange = length(realview(Q)),
                 dependencies = (event,),
             )
-            wait(array_device(Q), event)
+        wait(array_device(Q), event)
+
+        # When d[i] = 0, we do not perform fast substepping;
+        # instead we just update the slow tendency
+        if abs(d[i]) < 1.e-10
             Q .+= dt.*offset
         else
-            event = update!(array_device(Q), groupsize)(
-                realview(Q),
-                realview(offset),
-                Val(i),
-                realview(yn),
-                map(realview, ΔYnj[1:(i - 2)]),
-                map(realview, fYnj[1:(i - 1)]),
-                α[i, :],
-                β[i, :],
-                γ[i, :],
-                d[i],
-                dt;
-                ndrange = length(realview(Q)),
-                dependencies = (event,),
-            )
-            wait(array_device(Q), event)
-
             fastrhs!.a = time + c̃[i] * dt
             fastrhs!.b = (c[i] - c̃[i]) / d[i]
 
@@ -333,35 +327,6 @@ end
             offset[e] +=
                 (γi[j] / dt) * ΔYnj[j - 1][e] +
                 βi[j] * fYnj[j][e] # (1b cont.)
-        end
-    end
-end
-
-@kernel function update!(
-    Q,
-    offset,
-    ::Val{i},
-    yn,
-    ΔYnj,
-    fYnj,
-    αi,
-    βi,
-    γi,
-    d_i,
-    dt,
-) where {i}
-    e = @index(Global, Linear)
-    @inbounds begin
-        if i > 2
-            ΔYnj[i - 2][e] = Q[e] - yn[e] # is 0 for i == 2
-        end
-        Q[e] = yn[e] # (1a)
-        offset[e] = (βi[1] / d_i) .* fYnj[1][e] # (1b)
-        @unroll for j in 2:(i - 1)
-            Q[e] += αi[j] .* ΔYnj[j - 1][e] # (1a cont.)
-            offset[e] +=
-                (γi[j] / (d_i * dt)) * ΔYnj[j - 1][e] +
-                (βi[j] / d_i) * fYnj[j][e] # (1b cont.)
         end
     end
 end
