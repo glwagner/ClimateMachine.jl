@@ -114,7 +114,7 @@ heat_surface_state = (aux, t) -> eltype(aux)(288.15)
 heat_bottom_flux = (aux, t) -> eltype(aux)(0.0)
 T_init = (aux) -> eltype(aux)(275.15);
 
-function init_soil!(land, state, aux, coordinates, time)
+function init_soil!(land, state, aux, localgeo, time)
     ϑ_l, θ_i = get_water_content(land.soil.water, aux, state, time)
     θ_l = volumetric_liquid_fraction(ϑ_l, land.soil.param_functions.porosity)
     ρc_ds = land.soil.param_functions.ρc_ds

@@ -117,7 +117,7 @@ bottom_heat_flux = (aux, t) -> eltype(aux)(0.0)
 surface_heat_state = nothing
 bottom_heat_state = nothing;
 
-function init_soil!(land, state, aux, coordinates, time)
+function init_soil!(land, state, aux, localgeo, time)
     myFT = eltype(state)
     ϑ_l = myFT(land.soil.water.initialϑ_l(aux))
     θ_i = myFT(land.soil.water.initialθ_i(aux))
