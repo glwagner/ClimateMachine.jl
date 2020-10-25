@@ -349,8 +349,9 @@ end
 
 # Initialise the CFSite experiment :D! 
 const seed = MersenneTwister(0)
-function init_cfsites!(problem, bl, state, aux, (x, y, z), t, spl)
+function init_cfsites!(problem, bl, state, aux, localgeo, t, spl)
     FT = eltype(state)
+    (x, y, z) = localgeo.coord
     _grav = grav(bl.param_set)
 
     # Unpack splines, interpolate to z coordinate at 
