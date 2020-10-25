@@ -16,8 +16,8 @@ function vars_state(m::KinematicModel, ::Auxiliary, FT)
     @vars begin
         # defined in init_state_auxiliary
         p::FT
-        x::FT
-        z::FT
+        x_coord::FT
+        z_coord::FT
         # defined in update_aux
         u::FT
         w::FT
@@ -46,7 +46,9 @@ function vars_state(m::KinematicModel, ::Auxiliary, FT)
     end
 end
 
-function init_kinematic_eddy!(eddy_model, state, aux, (x, y, z), t)
+function init_kinematic_eddy!(eddy_model, state, aux, localgeo, t)
+    (x, y, z) = localgeo.coord
+
     FT = eltype(state)
 
     _grav::FT = grav(param_set)
@@ -110,12 +112,12 @@ function nodal_update_auxiliary_state!(
         # energy
         aux.e_tot = state.ρe / state.ρ
         aux.e_kin = 1 // 2 * (aux.u^2 + aux.w^2)
-        aux.e_pot = _grav * aux.z
+        aux.e_pot = _grav * aux.z_coord
         aux.e_int = aux.e_tot - aux.e_kin - aux.e_pot
         # supersaturation
         q = PhasePartition(aux.q_tot, aux.q_liq, aux.q_ice)
         aux.T = air_temperature(param_set, aux.e_int, q)
-        ts_neq = TemperatureSHumNonEquil(param_set, aux.T, state.ρ, q)
+        ts_neq = PhaseNonEquil_ρTq(param_set, state.ρ, aux.T, q)
         # TODO: add super_saturation method in moist thermo
         aux.S = max(0, aux.q_vap / q_vap_saturation(ts_neq) - FT(1)) * FT(100)
         aux.RH = relative_humidity(ts_neq) * FT(100)
@@ -124,7 +126,7 @@ function nodal_update_auxiliary_state!(
             terminal_velocity(param_set, rain_param_set, state.ρ, aux.q_rai)
 
         # more diagnostics
-        ts_eq = TemperatureSHumEquil(param_set, aux.T, state.ρ, aux.q_tot)
+        ts_eq = PhaseEquil_ρTq(param_set, state.ρ, aux.T, aux.q_tot)
         q_eq = PhasePartition(ts_eq)
 
         aux.src_cloud_liq = conv_q_vap_to_q_liq_ice(liquid_param_set, q_eq, q)
@@ -271,12 +273,12 @@ function source!(
         q_rai = state.ρq_rai / state.ρ
         u = state.ρu[1] / state.ρ
         w = state.ρu[3] / state.ρ
-        e_int = e_tot - 1 // 2 * (u^2 + w^2) - _grav * aux.z
+        e_int = e_tot - 1 // 2 * (u^2 + w^2) - _grav * aux.z_coord
 
         q = PhasePartition(q_tot, q_liq, q_ice)
         T = air_temperature(param_set, e_int, q)
         # equilibrium state at current T
-        ts_eq = TemperatureSHumEquil(param_set, T, state.ρ, q_tot)
+        ts_eq = PhaseEquil_ρTq(param_set, state.ρ, T, q_tot)
         q_eq = PhasePartition(ts_eq)
 
         # zero out the source terms
@@ -350,6 +352,7 @@ function main()
     #CFL = FT(1.75)
     filter_freq = 1
     output_freq = 72
+    interval = "9steps"
 
     # periodicity and boundary numbers
     periodicity_x = true
@@ -432,6 +435,7 @@ function main()
     end
     MPI.Barrier(mpicomm)
 
+    # vtk output
     vtkstep = [0]
     cb_vtk =
         GenericCallbacks.EveryXSimulationSteps(output_freq) do (init = false)
@@ -454,9 +458,36 @@ function main()
             nothing
         end
 
+    # output for netcdf
+    boundaries = [
+        FT(0) FT(0) FT(0)
+        xmax ymax zmax
+    ]
+    interpol = ClimateMachine.InterpolationConfiguration(
+        driver_config,
+        boundaries,
+        resolution,
+    )
+    dgngrps = [
+        setup_dump_state_diagnostics(
+            AtmosLESConfigType(),
+            interval,
+            driver_config.name,
+            interpol = interpol,
+        ),
+        setup_dump_aux_diagnostics(
+            AtmosLESConfigType(),
+            interval,
+            driver_config.name,
+            interpol = interpol,
+        ),
+    ]
+    dgn_config = ClimateMachine.DiagnosticsConfiguration(dgngrps)
+
     # call solve! function for time-integrator
     result = ClimateMachine.invoke!(
         solver_config;
+        diagnostics_config = dgn_config,
         user_callbacks = (cb_tmar_filter, cb_vtk),
         check_euclidean_distance = true,
     )
