@@ -19,6 +19,7 @@ using ClimateMachine.GenericCallbacks
 using ClimateMachine.DGMethods.NumericalFluxes
 using ClimateMachine.Diagnostics
 using ClimateMachine.Mesh.Filters
+using ClimateMachine.Mesh.Grids
 using ClimateMachine.Orientations
 using ClimateMachine.Thermodynamics
 using ClimateMachine.TurbulenceClosures
@@ -520,15 +521,15 @@ function main()
     Δv = FT(20)
     resolution = (Δh, Δh, Δv)
     # Domain extents
-    xmax = FT(500)
-    ymax = FT(500)
+    xmax = FT(1800)
+    ymax = FT(1800)
     zmax = FT(4000)
     # Simulation time
     t0 = FT(0)
     timeend = FT(600)
     #timeend = FT(3600 * 6)
     # Courant number
-    CFL = FT(0.8)
+    CFL = FT(0.2)
 
     # Execute the get_gcm_info function
     (
@@ -589,6 +590,7 @@ function main()
         splines;
         init_on_cpu = true,
         Courant_number = CFL,
+	CFL_direction = HorizontalDirection(),
     )
     # Set up diagnostic configuration
     dgn_config = config_diagnostics(driver_config)
