@@ -6,7 +6,7 @@ using ..DiagnosticsMachine
     "AtmosLESDefault",
     AtmosLESConfigType,
     GridDG,
-    nothing,
+    Nothing,
     # simple horizontal averages
     "u",
     "v",

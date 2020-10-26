@@ -43,7 +43,7 @@ function generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
     DT_var_map = Dict()
     for dvname in dvarnames
         dvar = AllDiagnosticVars[CT][dvname]
-        dispatch_arg = first(dv_args(CT, dvar))
+        dispatch_arg = first(dv_args(CT(), dvar))
         DT = dispatch_arg[2]
         compname = get(DT_name_map, DT, nothing)
         if isnothing(compname)
@@ -99,41 +99,6 @@ function generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
     return Expr(:block, (vars_funs...))
 end
 
-# Generate `setup_$(name)(...)` which will create the `DiagnosticsGroup`
-# for $name when called.
-function generate_setup_fun(name, config_type, on_grid, params_type)
-    setupfun = Symbol("setup_", name)
-    initfun = Symbol(name, "_init")
-    collectfun = Symbol(name, "_collect")
-    finifun = Symbol(name, "_fini")
-    quote
-        function $setupfun(
-            ::Type{$config_type},
-            params::$params_type,
-            interval::String,
-            out_prefix::String,
-            writer = NetCDFWriter(),
-            interpol = nothing,
-        ) where {
-            $config_type <: ClimateMachineConfigType,
-            $params_type <: Union{Nothing, DiagnosticsGroupParams},
-        }
-            return DiagnosticsGroup(
-                $(name),
-                $(initfun),
-                $(collectfun),
-                $(finifun),
-                interval,
-                out_prefix,
-                writer,
-                interpol,
-                $(on_grid === :GridDG),
-                params,
-            )
-        end
-    end
-end
-
 # Generate the `dims` dictionary for `Writers.init_data`.
 function generate_init_dims(name, config_type, on_grid, dvarnames, dvars)
     # Set up an error for when no InterpolationTopology is specified but the
@@ -156,13 +121,14 @@ function generate_init_dims(name, config_type, on_grid, dvarnames, dvars)
     add_dim_ex = quote end
     if on_grid === :GridDG
         add_z_dim_ex = quote end
-        if any(dv -> dv <: HorizontalAverage, dvars)
+        if any(dv -> typeof(dv) <: HorizontalAverage, dvars)
             add_z_dim_ex = quote
-                dims["z"] = (AtmosCollected.zvals, Dict())
+                #TODO uncomment dims["z"] = (AtmosCollected.zvals, Dict())
+                dims["z"] = (collect(1:100), Dict())
             end
         end
         add_ne_dims_ex = quote end
-        if any(dv -> dv <: PointwiseDiagnostic, dvars)
+        if any(dv -> typeof(dv) <: PointwiseDiagnostic, dvars)
             add_ne_dims_ex = quote
                 dims["nodes"] = (collect(1:npoints), Dict())
                 dims["elements"] = (collect(1:nrealelem), Dict())
@@ -194,21 +160,16 @@ end
 # Generate the `vars` dictionary for `Writers.init_data`.
 function generate_init_vars(name, config_type, on_grid, dvarnames, dvars)
     CT = getfield(ConfigTypes, config_type)
-    elems = ()
 
+    elems = Any[]
     for dvar in dvars
-        elems = (
-            elems...,
-            dv_name(CT, dvar) => (
-                :(dv_dims($dvar, esc(dims))), # TODO: dims?
-                :FT,
-                dv_attrib(CT, dvar),
-            )
-        )
+        rhs = :((dv_dims($dvar, dims), FT, $(dv_attrib(CT(), dvar))))
+        lhs = :($(dv_name(CT(), dvar)))
+        push!(elems, :($lhs => $rhs))
     end
 
     quote
-        OrderedDict($(elems...))
+        OrderedDict($(Expr(:tuple, elems...))...)
     end
 end
 
@@ -224,7 +185,7 @@ function generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
         function $init_name(dgngrp, curr_time)
             interpol = dgngrp.interpol
             mpicomm = Settings.mpicomm
-            mpirank = MPI.Comm_rank(mpicomm)
+            mpirank = 0 #MPI.Comm_rank(mpicomm)
             dg = Settings.dg
             bl = dg.balance_law
             grid = dg.grid
@@ -246,7 +207,8 @@ function generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
             if mpirank == 0
                 dims = $(generate_init_dims(name, config_type, on_grid, dvarnames, dvars))
                 vars = $(generate_init_vars(name, config_type, on_grid, dvarnames, dvars))
-
+                println(dims)
+                println(vars)
                 # create the output file
                 dprefix = @sprintf(
                     "%s_%s_%s",
@@ -255,7 +217,7 @@ function generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
                     Settings.starttime,
                 )
                 dfilename = joinpath(Settings.output_dir, dprefix)
-                init_data(dgngrp.writer, dfilename, dims, vars)
+                #init_data(dgngrp.writer, dfilename, dims, vars)
             end
 
             return nothing
@@ -266,10 +228,10 @@ end
 # Generate `Diagnostics.$(name)_collect(...)` which when called,
 # performs a collection of all the diagnostic variables in the group
 # and writes them out.
-function generate_collect_fun(name, config_type, on_grid, params_type, dvarnames)
+function generate_collect_fun_dev(name, config_type, on_grid, params_type, dvarnames)
     collect_name = Symbol(name, "_collect")
     quote
-        function $(esc(collect_name))(dgngrp, curr_time)
+        function $collect_name(dgngrp, curr_time)
             mpicomm = Settings.mpicomm
             mpirank = MPI.Comm_rank(mpicomm)
             dg = Settings.dg
@@ -292,12 +254,70 @@ function generate_collect_fun(name, config_type, on_grid, params_type, dvarnames
         end
     end
 end
+function generate_collect_fun(name, config_type, on_grid, params_type, dvarnames)
+    collect_name = Symbol(name, "_collect")
+    quote
+        function $collect_name(dgngrp, curr_time)
+            mpicomm = Settings.mpicomm
+            mpirank = MPI.Comm_rank(mpicomm)
+            dg = Settings.dg
+            bl = dg.balance_law
+            Q = Settings.Q
+            FT = eltype(Q)
+            interpol = dgngrp.interpol
+
+            if mpirank == 0
+                varvals = OrderedDict()
+                # XXX
+                append_data(dgngrp.writer, varvals, curr_time)
+            end
+
+            return nothing
+        end
+    end
+end
+
 
 # Generate `Diagnostics.$(name)_fini(...)`, which does nothing
 # right now.
-function generate_fini_fun(name, vars)
+function generate_fini_fun(name, config_type, on_grid, params_type, dvarnames)
     fini_name = Symbol(name, "_fini")
     quote
-        function $(esc(fini_name))(dgngrp, curr_time) end
+        function $fini_name(dgngrp, curr_time) end
+    end
+end
+
+# Generate `setup_$(name)(...)` which will create the `DiagnosticsGroup`
+# for $name when called.
+function generate_setup_fun(name, config_type, on_grid, params_type)
+    setupfun = Symbol("setup_", name)
+    initfun = Symbol(name, "_init")
+    collectfun = Symbol(name, "_collect")
+    finifun = Symbol(name, "_fini")
+    quote
+        function $setupfun(
+            ::$config_type,
+            params::$params_type,
+            interval::String,
+            out_prefix::String,
+            writer = NetCDFWriter(),
+            interpol = nothing,
+        ) where {
+            $config_type <: ClimateMachineConfigType,
+            $params_type <: Union{Nothing, DiagnosticsGroupParams},
+        }
+            return DiagnosticsGroup(
+                $(name),
+                $(initfun),
+                $(collectfun),
+                $(finifun),
+                interval,
+                out_prefix,
+                writer,
+                interpol,
+                $(on_grid === :GridDG),
+                params,
+            )
+        end
     end
 end

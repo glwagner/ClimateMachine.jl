@@ -30,7 +30,7 @@ The base type for diagnostic variables.
 abstract type DiagnosticVar end
 
 """
-    dv_name(::Type{CT}, ::Type{DVT}) where {
+    dv_name(::CT, ::DVT) where {
         CT <: ClimateMachineConfigType,
         DVT <: DiagnosticVar,
     }
@@ -38,7 +38,7 @@ abstract type DiagnosticVar end
 function dv_name end
 
 """
-    dv_attrib(::Type{CT}, ::Type{DVT}) where {
+    dv_attrib(::CT, ::DVT) where {
         CT <: ClimateMachineConfigType,
         DVT <: DiagnosticVar,
     }
@@ -46,7 +46,7 @@ function dv_name end
 function dv_attrib end
 
 """
-    dv_args(::Type{CT}, ::Type{DVT}) where {
+    dv_args(::CT, ::DVT) where {
         CT <: ClimateMachineConfigType,
         DVT <: DiagnosticVar,
     }
@@ -59,12 +59,12 @@ function dv_args end
 """
     dv_dims(::DVT, out_dims::ODT) where {
         DVT <: DiagnosticVar,
-        ODT <: Union{Nothing, Tuple},
+        ODT <: Union{Nothing, AbstractDict},
     }
 
-The `out_dims` parameter may be `nothing`, or a tuple
-with the names of the dimensions specified for the output
-(by the `InterpolationTopology` for instance).
+The `out_dims` parameter may be `nothing`, or a Dict keyed on
+the names of the dimensions specified for the output (by the
+`InterpolationTopology` for instance).
 """
 function dv_dims end
 
@@ -98,7 +98,7 @@ function generate_dv_interface(
     attrib_ex = quote end
     if any(a -> a != "", [units, long_name, standard_name])
         attrib_ex = quote
-            dv_attrib(::Type{$config_type}, ::Type{$dvtypname}) =
+            dv_attrib(::$config_type, ::$dvtypname) =
                 OrderedDict(
                     "units" => $units,
                     "long_name" => $long_name,
@@ -108,8 +108,8 @@ function generate_dv_interface(
     end
     quote
         struct $dvtypname <: $dvtype end
-        DiagnosticsMachine.AllDiagnosticVars[$config_type][$name] = $dvtypname
-        dv_name(::Type{$config_type}, ::Type{$dvtypname}) = $name
+        DiagnosticsMachine.AllDiagnosticVars[$config_type][$name] = $dvtypname()
+        dv_name(::$config_type, ::$dvtypname) = $name
         $(attrib_ex)
     end
 end
@@ -124,7 +124,7 @@ function generate_dv_function(
 )
     dvfun = Symbol("dv_", dvtype)
     dvtypname_args = map(
-        n -> :(Type{$n}),
+        n -> :($n),
         map(n -> Symbol(dv_type_name(dvtype, config_type, n)), names),
     )
     @capture(impl, ((args__,),) -> (body_)) ||
@@ -134,13 +134,13 @@ function generate_dv_function(
     fun_args = map(a -> :($(a[1])::$(a[2])), split_fun_args)
     quote
         function dv_args(
-            ::Type{$config_type},
+            ::$config_type,
             ::Union{$(dvtypname_args...)},
         )
             $split_fun_args
         end
         function $dvfun(
-            ::Type{$config_type},
+            ::$config_type,
             ::Union{$(dvtypname_args...)},
             $(fun_args...),
         )
@@ -173,15 +173,15 @@ end
 """
 abstract type IntermediateValue <: DiagnosticVar end
 dv_IntermediateValue(
-    ::Type{ClimateMachineConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::ClimateMachineConfigType,
+    ::Union{IntermediateValue},
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,
     ::AbstractIntermediates,
 ) = nothing
 
-dv_dims(::IntermediateValue, out_dims::Tuple) = out_dims
+dv_dims(::IntermediateValue, out_dims::AbstractDict) = tuple(collect(keys(out_dims))...)
 
 macro intermediate_value(config_type, name)
     iex = generate_dv_interface(:IntermediateValue, config_type, name)
@@ -231,15 +231,15 @@ the diagnostics group.
 """
 abstract type PointwiseDiagnostic <: DiagnosticVar end
 dv_PointwiseDiagnostic(
-    ::Type{ClimateMachineConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::ClimateMachineConfigType,
+    ::Union{PointwiseDiagnostic},
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,
     ::AbstractIntermediates,
 ) = nothing
 
-dv_dims(::PointwiseDiagnostic, out_dims::Tuple) = out_dims
+dv_dims(::PointwiseDiagnostic, out_dims::OrderedDict) = tuple(collect(keys(out_dims))...)
 
 macro pointwise_diagnostic(config_type, name)
     iex = generate_dv_interface(PointwiseDiagnostic, config_type, name)
@@ -314,16 +314,15 @@ A horizontal reduction into a single vertical dimension.
 """
 abstract type HorizontalAverage <: DiagnosticVar end
 dv_HorizontalAverage(
-    ::Type{ClimateMachineConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::ClimateMachineConfigType,
+    ::Union{HorizontalAverage},
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,
     ::AbstractIntermediates,
 ) = nothing
 
-dv_dims(::HorizontalAverage, ::Nothing) = ("z",)
-dv_dims(::HorizontalAverage, out_dims::Tuple) = tuple(last(out_dims))
+dv_dims(::HorizontalAverage, ::Any) = ("z",)
 
 macro horizontal_average(config_type, name)
     iex = generate_dv_interface(:HorizontalAverage, config_type, name)
@@ -396,8 +395,8 @@ A reduction into a scalar value.
 """
 abstract type ScalarDiagnostic <: DiagnosticVar end
 dv_ScalarDiagnostic(
-    ::Type{ClimateMachineConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::ClimateMachineConfigType,
+    ::Union{ScalarDiagnostic},
     ::BalanceLaw,
     ::States,
     ::AbstractFloat,

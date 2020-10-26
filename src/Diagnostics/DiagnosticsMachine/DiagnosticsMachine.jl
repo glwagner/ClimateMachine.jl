@@ -14,6 +14,7 @@ export DiagnosticVar,
     dv_name,
     dv_attrib,
     dv_args,
+    dv_dims,
     IntermediateValue,
     @intermediate_value,
     @intermediate_values,
@@ -73,19 +74,17 @@ include("groups.jl")
 const AllDiagnosticVars =
     OrderedDict{
         Type{<:ClimateMachineConfigType},
-        OrderedDict{String, Type{<:DiagnosticVar}},
+        OrderedDict{String, DiagnosticVar},
     }()
-AllDiagnosticVars[ClimateMachineConfigType] =
-    OrderedDict{String, Type{<:DiagnosticVar}}()
+#AllDiagnosticVars[ClimateMachineConfigType] =
+#    OrderedDict{String, Type{<:DiagnosticVar}}()
 function add_all_dvar_dicts(T::DataType)
+    AllDiagnosticVars[T] = OrderedDict{String, DiagnosticVar}()
     for t in subtypes(T)
-        AllDiagnosticVars[t] =
-            OrderedDict{String, Type{<:DiagnosticVar}}()
         add_all_dvar_dicts(t)
     end
 end
 add_all_dvar_dicts(ClimateMachineConfigType)
-#dvar = AllDiagnosticVars[getfield(ConfigTypes, config_type)][name]
 
 """
     init(mpicomm, param_set, dg, Q, starttime, output_dir)

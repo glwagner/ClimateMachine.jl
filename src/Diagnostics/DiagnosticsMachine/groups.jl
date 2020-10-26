@@ -13,7 +13,10 @@ collected at the same interval and written to the same file. A group's
 variables are collected either on the DG grid or on an interpolated
 grid.
 """
-mutable struct DiagnosticsGroup{DGP <: Union{Nothing, DiagnosticsGroupParams}}
+mutable struct DiagnosticsGroup{
+    DGP <: Union{Nothing, DiagnosticsGroupParams},
+    DGI <: Union{Nothing, InterpolationTopology},
+}
     name::String
     init::Function
     collect::Function
@@ -21,7 +24,7 @@ mutable struct DiagnosticsGroup{DGP <: Union{Nothing, DiagnosticsGroupParams}}
     interval::String
     out_prefix::String
     writer::AbstractWriter
-    interpol::Union{Nothing, InterpolationTopology}
+    interpol::DGI
     onetime::Bool
     params::DGP
 
@@ -35,8 +38,8 @@ mutable struct DiagnosticsGroup{DGP <: Union{Nothing, DiagnosticsGroupParams}}
         writer,
         interpol,
         onetime,
-        params = nothing,
-    ) = new{typeof(params)}(
+        params,
+    ) = new{typeof(params), typeof(interpol)}(
         name,
         init,
         collect,
@@ -114,25 +117,27 @@ macro diagnostics_group(
 )
     ex = generate_vars_funs(name, config_type, on_grid, params_type, dvarnames)
     vars_funs = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
-    println(vars_funs)
+    #println(vars_funs)
+    init_fun = esc(generate_init_fun(name, config_type, on_grid, params_type, dvarnames))
+    #init_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    println(init_fun)
+    ex = generate_collect_fun(name, config_type, on_grid, params_type, dvarnames)
+    collect_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    #println(collect_fun)
+    ex = generate_fini_fun(name, config_type, on_grid, params_type, dvarnames)
+    fini_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
+    #println(fini_fun)
     ex = generate_setup_fun(name, config_type, on_grid, params_type)
     setup_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
-    println(setup_fun)
-    ex = generate_init_fun(name, config_type, on_grid, params_type, dvarnames)
-    init_fun = esc(MacroTools.prewalk(unblock, MacroTools.prewalk(rmlines, ex)))
-    println(init_fun)
-    #collect = generate_collect(name, config_type, on_grid, params_type, dvarnames)
-    #println(collect)
-    #fini = generate_fini(name, config_type, on_grid, params_type, dvarnames)
-    #println(fini)
+    #println(setup_fun)
 
     return Expr(
         :block,
         vars_funs,
         setup_fun,
         init_fun,
-        #collect_fun,
-        #fini_fun,
+        collect_fun,
+        fini_fun,
     )
 end
 

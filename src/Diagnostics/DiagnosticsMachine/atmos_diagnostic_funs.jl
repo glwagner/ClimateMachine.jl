@@ -6,8 +6,8 @@ using ..TurbulenceConvection
 # in `AtmosModel`.
 
 dv_IntermediateValue(
-    ::Type{AtmosConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::AtmosConfigType,
+    ::Union{IntermediateValue},
     ::MoistureModel,
     ::AtmosModel,
     ::States,
@@ -15,8 +15,8 @@ dv_IntermediateValue(
     ::AbstractIntermediates,
 ) = nothing
 dv_PointwiseDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{PointwiseDiagnostic},
     ::MoistureModel,
     ::AtmosModel,
     ::States,
@@ -24,8 +24,8 @@ dv_PointwiseDiagnostic(
     ::AbstractIntermediates,
 ) = nothing
 dv_HorizontalAverage(
-    ::Type{AtmosConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::AtmosConfigType,
+    ::Union{HorizontalAverage},
     ::MoistureModel,
     ::AtmosModel,
     ::States,
@@ -33,8 +33,8 @@ dv_HorizontalAverage(
     ::AbstractIntermediates,
 ) = nothing
 dv_ScalarDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{ScalarDiagnostic},
     ::MoistureModel,
     ::AtmosModel,
     ::States,
@@ -43,8 +43,8 @@ dv_ScalarDiagnostic(
 ) = nothing
 
 dv_IntermediateValue(
-    ::Type{AtmosConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::AtmosConfigType,
+    ::Union{IntermediateValue},
     ::PrecipitationModel,
     ::AtmosModel,
     ::States,
@@ -52,8 +52,8 @@ dv_IntermediateValue(
     ::AbstractIntermediates,
 ) = nothing
 dv_PointwiseDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{PointwiseDiagnostic},
     ::PrecipitationModel,
     ::AtmosModel,
     ::States,
@@ -61,8 +61,8 @@ dv_PointwiseDiagnostic(
     ::AbstractIntermediates,
 ) = nothing
 dv_HorizontalAverage(
-    ::Type{AtmosConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::AtmosConfigType,
+    ::Union{HorizontalAverage},
     ::PrecipitationModel,
     ::AtmosModel,
     ::States,
@@ -70,8 +70,8 @@ dv_HorizontalAverage(
     ::AbstractIntermediates,
 ) = nothing
 dv_ScalarDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{ScalarDiagnostic},
     ::PrecipitationModel,
     ::AtmosModel,
     ::States,
@@ -80,8 +80,8 @@ dv_ScalarDiagnostic(
 ) = nothing
 
 dv_IntermediateValue(
-    ::Type{AtmosConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::AtmosConfigType,
+    ::Union{IntermediateValue},
     ::RadiationModel,
     ::AtmosModel,
     ::States,
@@ -89,8 +89,8 @@ dv_IntermediateValue(
     ::AbstractIntermediates,
 ) = nothing
 dv_PointwiseDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{PointwiseDiagnostic},
     ::RadiationModel,
     ::AtmosModel,
     ::States,
@@ -98,8 +98,8 @@ dv_PointwiseDiagnostic(
     ::AbstractIntermediates,
 ) = nothing
 dv_HorizontalAverage(
-    ::Type{AtmosConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::AtmosConfigType,
+    ::Union{HorizontalAverage},
     ::RadiationModel,
     ::AtmosModel,
     ::States,
@@ -107,8 +107,8 @@ dv_HorizontalAverage(
     ::AbstractIntermediates,
 ) = nothing
 dv_ScalarDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{ScalarDiagnostic},
     ::RadiationModel,
     ::AtmosModel,
     ::States,
@@ -117,8 +117,8 @@ dv_ScalarDiagnostic(
 ) = nothing
 
 dv_IntermediateValue(
-    ::Type{AtmosConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::AtmosConfigType,
+    ::Union{IntermediateValue},
     ::TracerModel,
     ::AtmosModel,
     ::States,
@@ -126,8 +126,8 @@ dv_IntermediateValue(
     ::AbstractIntermediates,
 ) = nothing
 dv_PointwiseDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{PointwiseDiagnostic},
     ::TracerModel,
     ::AtmosModel,
     ::States,
@@ -135,8 +135,8 @@ dv_PointwiseDiagnostic(
     ::AbstractIntermediates,
 ) = nothing
 dv_HorizontalAverage(
-    ::Type{AtmosConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::AtmosConfigType,
+    ::Union{HorizontalAverage},
     ::TracerModel,
     ::AtmosModel,
     ::States,
@@ -144,8 +144,8 @@ dv_HorizontalAverage(
     ::AbstractIntermediates,
 ) = nothing
 dv_ScalarDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{ScalarDiagnostic},
     ::TracerModel,
     ::AtmosModel,
     ::States,
@@ -154,8 +154,8 @@ dv_ScalarDiagnostic(
 ) = nothing
 
 dv_IntermediateValue(
-    ::Type{AtmosConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::AtmosConfigType,
+    ::Union{IntermediateValue},
     ::TurbulenceClosureModel,
     ::AtmosModel,
     ::States,
@@ -163,8 +163,8 @@ dv_IntermediateValue(
     ::AbstractIntermediates,
 ) = nothing
 dv_PointwiseDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{PointwiseDiagnostic},
     ::TurbulenceClosureModel,
     ::AtmosModel,
     ::States,
@@ -172,8 +172,8 @@ dv_PointwiseDiagnostic(
     ::AbstractIntermediates,
 ) = nothing
 dv_HorizontalAverage(
-    ::Type{AtmosConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::AtmosConfigType,
+    ::Union{HorizontalAverage},
     ::TurbulenceClosureModel,
     ::AtmosModel,
     ::States,
@@ -181,8 +181,8 @@ dv_HorizontalAverage(
     ::AbstractIntermediates,
 ) = nothing
 dv_ScalarDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{ScalarDiagnostic},
     ::TurbulenceClosureModel,
     ::AtmosModel,
     ::States,
@@ -191,8 +191,8 @@ dv_ScalarDiagnostic(
 ) = nothing
 
 dv_IntermediateValue(
-    ::Type{AtmosConfigType},
-    ::Union{Type{IntermediateValue}},
+    ::AtmosConfigType,
+    ::Union{IntermediateValue},
     ::TurbulenceConvectionModel,
     ::AtmosModel,
     ::States,
@@ -200,8 +200,8 @@ dv_IntermediateValue(
     ::AbstractIntermediates,
 ) = nothing
 dv_PointwiseDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{PointwiseDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{PointwiseDiagnostic},
     ::TurbulenceConvectionModel,
     ::AtmosModel,
     ::States,
@@ -209,8 +209,8 @@ dv_PointwiseDiagnostic(
     ::AbstractIntermediates,
 ) = nothing
 dv_HorizontalAverage(
-    ::Type{AtmosConfigType},
-    ::Union{Type{HorizontalAverage}},
+    ::AtmosConfigType,
+    ::Union{HorizontalAverage},
     ::TurbulenceConvectionModel,
     ::AtmosModel,
     ::States,
@@ -218,8 +218,8 @@ dv_HorizontalAverage(
     ::AbstractIntermediates,
 ) = nothing
 dv_ScalarDiagnostic(
-    ::Type{AtmosConfigType},
-    ::Union{Type{ScalarDiagnostic}},
+    ::AtmosConfigType,
+    ::Union{ScalarDiagnostic},
     ::TurbulenceConvectionModel,
     ::AtmosModel,
     ::States,
