@@ -368,6 +368,10 @@ gravitational_potential(bl, aux) = gravitational_potential(bl.orientation, aux)
 turbulence_tensors(atmos::AtmosModel, args...) =
     turbulence_tensors(atmos.turbulence, atmos, args...)
 
+include("tendencies_multiphysics.jl") # types for multi-physics tendencies
+include("tendencies_mass.jl")
+include("tendencies_momentum.jl")
+include("tendencies_energy.jl")
 
 include("problem.jl")
 include("ref_state.jl")
@@ -381,9 +385,6 @@ include("linear.jl")
 include("courant.jl")
 include("filters.jl")
 
-include("tendencies_mass.jl")
-include("tendencies_momentum.jl")
-include("tendencies_energy.jl")
 include("tendencies.jl")
 include("tendencies_sum.jl")
 
@@ -735,6 +736,16 @@ function source!(
     t::Real,
     direction,
 )
+    tend = NonConservative()
+    ts = recover_thermo_state(m, state, aux)
+    args = (m, state, aux, t, ts, direction, diffusive)
+    source.ρ = Σsources(ρ_tend(m, tend), args...)
+    source.ρu = Σsources(ρu_tend(m, tend), args...)
+    source.ρe = Σsources(ρe_tend(m, tend), args...)
+    if m.moisture isa EquilMoist || m.moisture isa NonEquilMoist
+        source.ρq_tot = Σsources(ρq_tot_tend(m, tend), args...)
+    end
+
     atmos_source!(m.source, m, source, state, diffusive, aux, t, direction)
 end
 

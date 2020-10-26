@@ -98,10 +98,6 @@ function atmos_source!(
     source.ρu -= SVector(0, 0, 2 * _Omega) × state.ρu
 end
 
-struct Subsidence{FT} <: Source
-    D::FT
-end
-
 function atmos_source!(
     subsidence::Subsidence,
     atmos::AtmosModel,
@@ -112,18 +108,8 @@ function atmos_source!(
     t::Real,
     direction,
 )
-    ρ = state.ρ
-    z = altitude(atmos, aux)
-    w_sub = subsidence_velocity(subsidence, z)
-    k̂ = vertical_unit_vector(atmos, aux)
-
-    source.ρe -= ρ * w_sub * dot(k̂, diffusive.∇h_tot)
-    source.moisture.ρq_tot -= ρ * w_sub * dot(k̂, diffusive.moisture.∇q_tot)
+    # this source has been incorporated by `Σsources`
 end
-
-subsidence_velocity(subsidence::Subsidence{FT}, z::FT) where {FT} =
-    -subsidence.D * z
-
 
 struct GeostrophicForcing{FT} <: Source
     f_coriolis::FT

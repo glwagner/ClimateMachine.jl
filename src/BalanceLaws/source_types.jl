@@ -1,7 +1,8 @@
 #### Source types
 
 export AbstractTendency, Flux1ˢᵗOrder, Flux2ⁿᵈOrder, NonConservative
-export AbstractTendencyDefinition, Flux1ˢᵗOrderTendency, Flux2ⁿᵈOrderTendency, NonConservativeTendency
+export AbstractTendencyDefinition,
+    Flux1ˢᵗOrderTendency, Flux2ⁿᵈOrderTendency, NonConservativeTendency
 
 """
     AbstractTendency
@@ -24,4 +25,3 @@ abstract type AbstractTendencyDefinition end
 abstract type Flux1ˢᵗOrderTendency <: AbstractTendencyDefinition end
 abstract type Flux2ⁿᵈOrderTendency <: AbstractTendencyDefinition end
 abstract type NonConservativeTendency <: AbstractTendencyDefinition end
-
