@@ -6,6 +6,7 @@ import ..BrickMesh
 using MPI
 using LinearAlgebra
 using KernelAbstractions
+using DoubleFloats: DoubleFloat
 
 export DiscontinuousSpectralElementGrid, AbstractGrid
 export dofs_per_element, arraytype, dimensionality, polynomialorder
@@ -189,6 +190,7 @@ struct DiscontinuousSpectralElementGrid{
         FloatType,
         DeviceArray,
         meshwarp::Function = (x...) -> identity(x),
+        compute_type = FloatType == Float32 ? Float64 : DoubleFloat{FloatType},
     ) where {dim}
 
         if polynomialorder isa Integer
@@ -225,8 +227,8 @@ struct DiscontinuousSpectralElementGrid{
         Np = prod(N .+ 1)
 
         # Create element operators for each polynomial order
-        ξω = ntuple(j -> Elements.lglpoints(FloatType, N[j]), dim)
-        ξ, ω = ntuple(j -> map(x -> x[j], ξω), 2)
+        ξω = ntuple(j -> Elements.lglpoints(BigFloat, N[j]), dim)
+        ξ, ω = ntuple(j -> map(x -> compute_type.(x[j]), ξω), 2)
 
         Imat = ntuple(
             j -> indefinite_integral_interpolation_matrix(ξ[j], ω[j]),
@@ -250,19 +252,19 @@ struct DiscontinuousSpectralElementGrid{
         activedofs[vmaprecv] .= true
 
         # Create arrays on the device
-        vgeo = DeviceArray(vgeo)
-        sgeo = DeviceArray(sgeo)
+        vgeo = DeviceArray(FloatType.(vgeo))
+        sgeo = DeviceArray(FloatType.(sgeo))
+
         elemtobndy = DeviceArray(topology.elemtobndy)
         vmap⁻ = DeviceArray(vmap⁻)
         vmap⁺ = DeviceArray(vmap⁺)
         vmapsend = DeviceArray(vmapsend)
         vmaprecv = DeviceArray(vmaprecv)
         activedofs = DeviceArray(activedofs)
-        ω = DeviceArray(ω)
-        D = DeviceArray(D)
-        Imat = DeviceArray(Imat)
+        ω = DeviceArray(map(x -> FloatType.(x), ω))
+        D = DeviceArray(map(x -> FloatType.(x), D))
+        Imat = DeviceArray(map(x -> FloatType.(x), Imat))
 
-        # FIXME: There has got to be a better way!
         DAT1 = typeof(ω)
         DAT2 = typeof(D)
         DAT3 = typeof(vgeo)
