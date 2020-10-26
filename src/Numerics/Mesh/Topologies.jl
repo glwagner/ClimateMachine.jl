@@ -257,13 +257,13 @@ function Base.getproperty(a::StackedBrickTopology, p::Symbol)
 end
 
 """
-    StackedCubedSphereTopology{3, T} <: AbstractTopology{3}
+    StackedCubedSphereTopology{3, T} <: AbstractStackedTopology{3}
 
 A cube-sphere topology. All elements on the same "vertical" dimension are
 stacked to be contiguous. This is a convenience wrapper around
 [`BoxElementTopology`](@ref).
 """
-struct StackedCubedSphereTopology{T} <: AbstractTopology{3}
+struct StackedCubedSphereTopology{T} <: AbstractStackedTopology{3}
     topology::BoxElementTopology{3, T}
     stacksize::Int64
 end
@@ -1304,12 +1304,14 @@ function basic_topology_info(topology::AbstractStackedTopology)
     nvertelem = topology.stacksize
     nhorzelem = div(nelem, nvertelem)
     nrealelem = length(topology.realelems)
+    nhorzrealelem = div(nrealelem, nvertelem)
 
     return (
         nelem = nelem,
         nvertelem = nvertelem,
         nhorzelem = nhorzelem,
         nrealelem = nrealelem,
+        nhorzrealelem = nhorzrealelem,
     )
 end
 
