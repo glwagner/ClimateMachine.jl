@@ -8,7 +8,7 @@ using LinearAlgebra
 using KernelAbstractions
 
 export DiscontinuousSpectralElementGrid, AbstractGrid
-export dofs_per_element, arraytype, dimensionality, polynomialorder
+export dofs_per_element, arraytype, dimensionality, polynomialorders
 export referencepoints, min_node_distance, get_z
 export EveryDirection, HorizontalDirection, VerticalDirection, Direction
 
@@ -28,7 +28,7 @@ abstract type AbstractGrid{
 
 dofs_per_element(::AbstractGrid{T, D, N, Np}) where {T, D, N, Np} = Np
 
-polynomialorder(::AbstractGrid{T, dim, N}) where {T, dim, N} = N
+polynomialorders(::AbstractGrid{T, dim, N}) where {T, dim, N} = N
 
 dimensionality(::AbstractGrid{T, dim}) where {T, dim} = dim
 
@@ -173,13 +173,13 @@ struct DiscontinuousSpectralElementGrid{
     "Array indicating if a degree of freedom (real or ghost) is active"
     activedofs
 
-    "1-D lvl weights on the device"
+    "1-D lvl weights on the device (one for each dimension)"
     ω::DAT1
 
-    "1-D derivative operator on the device"
+    "1-D derivative operator on the device (one for each dimension)"
     D::DAT2
 
-    "1-D indefinite integral operator on the device"
+    "1-D indefinite integral operator on the device (one for each dimension)"
     Imat::DAT2
 
     # Constructor for a tuple of polynomial orders
@@ -236,13 +236,6 @@ struct DiscontinuousSpectralElementGrid{
 
         (vgeo, sgeo) = computegeometry(topology, D, ξ, ω, meshwarp, vmap⁻)
 
-        # temporarily make single polynomial order
-        @assert all(N[1] .== N)
-        N = N[1]
-        D = D[1]
-        ω = ω[1]
-        Imat = Imat[1]
-
         @assert Np == size(vgeo, 1)
 
         activedofs = zeros(Bool, Np * length(topology.elems))
@@ -258,9 +251,9 @@ struct DiscontinuousSpectralElementGrid{
         vmapsend = DeviceArray(vmapsend)
         vmaprecv = DeviceArray(vmaprecv)
         activedofs = DeviceArray(activedofs)
-        ω = DeviceArray(ω)
-        D = DeviceArray(D)
-        Imat = DeviceArray(Imat)
+        ω = DeviceArray.(ω)
+        D = DeviceArray.(D)
+        Imat = DeviceArray.(Imat)
 
         # FIXME: There has got to be a better way!
         DAT1 = typeof(ω)
@@ -315,7 +308,8 @@ Returns the 1D interpolation points used for the reference element.
 function referencepoints(
     ::DiscontinuousSpectralElementGrid{T, dim, N},
 ) where {T, dim, N}
-    ξ, _ = Elements.lglpoints(T, N)
+    ξω = ntuple(j -> Elements.lglpoints(FloatType, N[j]), dim)
+    ξ, _ = ntuple(j -> map(x -> x[j], ξω), 2)
     ξ
 end
 
