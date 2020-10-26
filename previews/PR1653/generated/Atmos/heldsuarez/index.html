@@ -136,8 +136,8 @@ timeend = FT(n_days * day(param_set)); ## end time (s);</code></pre><p>The next 
 │     #vert elems      = 2
 │     domain height    = 3.00e+04 m
 │     MPI ranks        = 1
-│     min(Δ_horz)      = 416156.75 m
-└     min(Δ_vert)      = 1760.58 m</pre><p>The next lines set up the time stepper. Since the resolution in the vertical is much finer than in the horizontal, the &#39;stiff&#39; parts of the PDE will be in the vertical. Setting <code>splitting_type = HEVISplitting()</code> will treat vertical acoustic waves implicitly, while all other dynamics are treated explicitly.</p><pre><code class="language-julia">ode_solver_type = ClimateMachine.IMEXSolverType(
+│     min(Δ_horz)      = 416156.91 m
+└     min(Δ_vert)      = 1761.55 m</pre><p>The next lines set up the time stepper. Since the resolution in the vertical is much finer than in the horizontal, the &#39;stiff&#39; parts of the PDE will be in the vertical. Setting <code>splitting_type = HEVISplitting()</code> will treat vertical acoustic waves implicitly, while all other dynamics are treated explicitly.</p><pre><code class="language-julia">ode_solver_type = ClimateMachine.IMEXSolverType(
     splitting_type = HEVISplitting(),
     implicit_model = AtmosAcousticGravityLinearModel,
     implicit_solver = ManyColumnLU,
@@ -201,11 +201,15 @@ dgn_config = ClimateMachine.DiagnosticsConfiguration(dgngrps);</code></pre><h2 i
 │     dt              = 1.21690e+02
 │     timeend         =  8640.00
 │     number of steps = 71
-└     norm(Q)         = 7.7111012360192000e+13
+└     norm(Q)         = 7.7109972172800000e+13
+┌ Info: Update
+│     simtime =  2920.56 /  8640.00
+│     runtime = 00:01:00
+└     norm(Q) = 7.7112320983040000e+13
 ┌ Info: Finished
-│     norm(Q)            = 7.7119560351744000e+13
-│     norm(Q) / norm(Q₀) = 1.0001108646392822e+00
-└     norm(Q) - norm(Q₀) = 8.5479915520000000e+09
+│     norm(Q)            = 7.7118679547904000e+13
+│     norm(Q) / norm(Q₀) = 1.0001128911972046e+00
+└     norm(Q) - norm(Q₀) = 8.7073751040000000e+09
 ┌ Info: Euclidean distance
-│     norm(Q - Qe)            = 1.3422088192000000e+11
-└     norm(Q - Qe) / norm(Qe) = 1.7406120896339417e-03</pre><h2 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h2><ul><li>Held, I.M. and M.J. Suarez, 1994: A Proposal for the Intercomparison</li></ul><p>the Dynamical Cores of Atmospheric General Circulation Models. Bull. # Amer. Meteor. Soc., 75, 1825–1830, https://doi.org/10.1175/1520-0477(1994)075&lt;1825:APFTIO&gt;2.0.CO;2</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../how_to_make_a_balance_law/">« Balance Law</a><a class="docs-footer-nextpage" href="../burgers_single_stack/">Single Element Stack Experiment (Burgers Equation) »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Saturday 24 October 2020 22:04">Saturday 24 October 2020</span>. Using Julia version 1.5.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
+│     norm(Q - Qe)            = 1.3318755942400000e+11
+└     norm(Q - Qe) / norm(Qe) = 1.7272348050028086e-03</pre><h2 id="References"><a class="docs-heading-anchor" href="#References">References</a><a id="References-1"></a><a class="docs-heading-anchor-permalink" href="#References" title="Permalink"></a></h2><ul><li>Held, I.M. and M.J. Suarez, 1994: A Proposal for the Intercomparison</li></ul><p>the Dynamical Cores of Atmospheric General Circulation Models. Bull. # Amer. Meteor. Soc., 75, 1825–1830, https://doi.org/10.1175/1520-0477(1994)075&lt;1825:APFTIO&gt;2.0.CO;2</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../../how_to_make_a_balance_law/">« Balance Law</a><a class="docs-footer-nextpage" href="../burgers_single_stack/">Single Element Stack Experiment (Burgers Equation) »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Monday 26 October 2020 21:43">Monday 26 October 2020</span>. Using Julia version 1.5.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
