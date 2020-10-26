@@ -19,6 +19,7 @@ using ClimateMachine.GenericCallbacks
 using ClimateMachine.DGMethods.NumericalFluxes
 using ClimateMachine.Diagnostics
 using ClimateMachine.Mesh.Filters
+using ClimateMachine.Mesh.Grids
 using ClimateMachine.Orientations
 using ClimateMachine.Thermodynamics
 using ClimateMachine.TurbulenceClosures
@@ -36,20 +37,20 @@ using ClimateMachine.Atmos: altitude, recover_thermo_state
 import ClimateMachine.Atmos: source!, atmos_source!
 
 # Citation for problem setup
-"""
-CMIP6 Test Dataset - cfsites
-@Article{gmd-10-359-2017,
-AUTHOR = {Webb, M. J. and Andrews, T. and Bodas-Salcedo, A. and Bony, S. and Bretherton, C. S. and Chadwick, R. and Chepfer, H. and Douville, H. and Good, P. and Kay, J. E. and Klein, S. A. and Marchand, R. and Medeiros, B. and Siebesma, A. P. and Skinner, C. B. and Stevens, B. and Tselioudis, G. and Tsushima, Y. and Watanabe, M.},
-TITLE = {The Cloud Feedback Model Intercomparison Project (CFMIP) contribution to CMIP6},
-JOURNAL = {Geoscientific Model Development},
-VOLUME = {10},
-YEAR = {2017},
-NUMBER = {1},
-PAGES = {359--384},
-URL = {https://www.geosci-model-dev.net/10/359/2017/},
-DOI = {10.5194/gmd-10-359-2017}
-}
-"""
+
+##CMIP6 Test Dataset - cfsites
+##@Article{
+##    gmd-10-359-2017,
+##    AUTHOR = {Webb, M. J. and Andrews, T. and Bodas-Salcedo, A. and Bony, S. and Bretherton, C. S. and Chadwick, R. and Chepfer, H. and Douville, H. and Good, P. and Kay, J. E. and Klein, S. A. and Marchand, R. and Medeiros, B. and Siebesma, A. P. and Skinner, C. B. and Stevens, B. and Tselioudis, G. and Tsushima, Y. and Watanabe, M.},
+##    TITLE = {The Cloud Feedback Model Intercomparison Project (CFMIP) contribution to CMIP6},
+##    JOURNAL = {Geoscientific Model Development},
+##    VOLUME = {10},
+##    YEAR = {2017},
+##    NUMBER = {1},
+##    PAGES = {359--384},
+##    URL = {https://www.geosci-model-dev.net/10/359/2017/},
+##    DOI = {10.5194/gmd-10-359-2017},
+##}
 
 struct GCMRelaxation{FT} <: Source
     τ_relax::FT
@@ -68,6 +69,7 @@ function atmos_source!(
 end
 
 # Temperature tendency term, ∂T∂t
+
 """
     EnergyTendency <: Source
 
@@ -80,6 +82,7 @@ Tendencies included here are
     tntr = temperature tendency due to radiation fluxes
     ∂T∂z = temperature vertical gradient from GCM values
 """
+
 struct EnergyTendency <: Source end
 function atmos_source!(
     s::EnergyTendency,
@@ -98,18 +101,18 @@ function atmos_source!(
     k̂ = vertical_unit_vector(atmos, aux)
     _e_int_v0 = e_int_v0(atmos.param_set)
     # Unpack vertical gradients
-    ∂qt∂z = dot(diffusive.gcminfo.∇hus, k̂)
-    ∂T∂z = dot(diffusive.gcminfo.∇ta, k̂)
-    w_s = -aux.gcminfo.wap / aux.gcminfo.ρ / _grav
+    ∂qt∂z = diffusive.gcminfo.∇ᵥhus
+    ∂T∂z = diffusive.gcminfo.∇ᵥta
+    w_s = aux.gcminfo.w_s
     # Establish thermodynamic state
     TS = recover_thermo_state(atmos, state, aux)
     cvm = cv_m(TS)
     # Compute tendency terms
     # Temperature contribution
     T_tendency =
-        aux.gcminfo.tntha + aux.gcminfo.tntva + aux.gcminfo.tntr + ∂T∂z * w_s
+        aux.gcminfo.Σtemp_tendency + ∂T∂z * w_s
     # Moisture contribution
-    q_tot_tendency = aux.gcminfo.tnhusha + aux.gcminfo.tnhusva + ∂qt∂z * w_s
+    q_tot_tendency = aux.gcminfo.Σqt_tendency + ∂qt∂z * w_s
     source.ρe += cvm * state.ρ * T_tendency
     source.ρe += _e_int_v0 * state.ρ * q_tot_tendency
     # GPU-friendly return nothing
@@ -144,13 +147,13 @@ function atmos_source!(
     _grav = grav(atmos.param_set)
     k̂ = vertical_unit_vector(atmos, aux)
     # Establish vertical orientation
-    ∂qt∂z = dot(diffusive.gcminfo.∇hus, k̂)
-    w_s = -aux.gcminfo.wap / aux.gcminfo.ρ / _grav
+    ∂qt∂z = diffusive.gcminfo.∇ᵥhus
+    w_s = aux.gcminfo.w_s
     # Establish thermodynamic state
     TS = recover_thermo_state(atmos, state, aux)
     cvm = cv_m(TS)
     # Compute tendency terms
-    q_tot_tendency = aux.gcminfo.tnhusha + aux.gcminfo.tnhusva + ∂qt∂z * w_s
+    q_tot_tendency = aux.gcminfo.Σqt_tendency + ∂qt∂z * w_s
     source.moisture.ρq_tot += state.ρ * q_tot_tendency
     source.ρ += state.ρ * q_tot_tendency
     # GPU-friendly return nothing
@@ -181,7 +184,7 @@ function atmos_source!(
     # Establish vertical orientation
     k̂ = vertical_unit_vector(atmos, aux)
     # Establish subsidence velocity
-    w_s = -aux.gcminfo.wap / aux.gcminfo.ρ / _grav
+    w_s = aux.gcminfo.w_s
     # Compute tendency terms
     source.ρe -= state.ρ * w_s * dot(k̂, diffusive.∇h_tot)
     source.moisture.ρq_tot -= state.ρ * w_s * dot(k̂, diffusive.moisture.∇q_tot)
@@ -276,7 +279,7 @@ function get_gcm_info(groupid)
     @printf("HadGEM2-A_LES = %s\n", groupid)
     @printf("--------------------------------------------------\n")
     filename =
-        "/central/groups/esm/zhaoyi/GCMForcedLES/forcing/clima/" *
+        #"/central/groups/esm/zhaoyi/GCMForcedLES/forcing/clima/" *
         forcingfile *
         ".nc"
 
@@ -346,8 +349,9 @@ end
 
 # Initialise the CFSite experiment :D! 
 const seed = MersenneTwister(0)
-function init_cfsites!(problem, bl, state, aux, (x, y, z), t, spl)
+function init_cfsites!(problem, bl, state, aux, localgeo, t, spl)
     FT = eltype(state)
+    (x, y, z) = localgeo.coord
     _grav = grav(bl.param_set)
 
     # Unpack splines, interpolate to z coordinate at 
@@ -382,19 +386,13 @@ function init_cfsites!(problem, bl, state, aux, (x, y, z), t, spl)
     end
 
     # Assign and store the ref variable for sources
-    aux.gcminfo.ρ = ρ_gcm
-    aux.gcminfo.pfull = pfull
     aux.gcminfo.ta = ta
     aux.gcminfo.hus = hus
-    aux.gcminfo.tntha = tntha
-    aux.gcminfo.tntva = tntva
+    aux.gcminfo.Σtemp_tendency = tntha + tntva + tntr
     aux.gcminfo.ua = ua
     aux.gcminfo.va = va
-    aux.gcminfo.tntr = tntr
-    aux.gcminfo.tnhusha = tnhusha
-    aux.gcminfo.tnhusva = tnhusva
-    aux.gcminfo.wap = wap
-
+    aux.gcminfo.Σqt_tendency = tnhusha + tnhusva
+    aux.gcminfo.w_s = -wap / ρ_gcm / _grav
     return nothing
 end
 
@@ -444,7 +442,7 @@ function config_cfsites(
         moisture = EquilMoist{FT}(; maxiter = 5, tolerance = FT(2)),
         #ZS: hyperdiffusion?
         #hyperdiffusion = DryBiharmonic{FT}(12*3600),
-        gcminfo = HadGEM(),
+        gcminfo = HadGEMVertical(),
     )
 
     # Timestepper options
@@ -532,7 +530,7 @@ function main()
     timeend = FT(600)
     #timeend = FT(3600 * 6)
     # Courant number
-    CFL = FT(0.8)
+    CFL = FT(0.2)
 
     # Execute the get_gcm_info function
     (
@@ -593,6 +591,7 @@ function main()
         splines;
         init_on_cpu = true,
         Courant_number = CFL,
+	CFL_direction = HorizontalDirection(),
     )
     # Set up diagnostic configuration
     dgn_config = config_diagnostics(driver_config)
